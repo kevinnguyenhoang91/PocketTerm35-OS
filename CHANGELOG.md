@@ -28,6 +28,8 @@
 - A brightness step on a backlight with few levels always moves it.
 - Quick settings' sliders start past their labels instead of over them, at
   any font size. The legend's pills grow with the hint font.
+- A restarted pt35d clears the bindings the last one left. An old Mouse
+  mode no longer keeps the D-pad moving the cursor until a reboot.
 
 ## 0.4.6 (2026-11-14)
 
