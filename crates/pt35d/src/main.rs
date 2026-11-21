@@ -72,7 +72,7 @@ fn main() -> Result<()> {
     }
 
     if pt35_common::device::Device::current() == pt35_common::device::Device::UConsole {
-        gamepad::spawn();
+        gamepad::spawn(Arc::clone(&session), Arc::clone(&subscribers));
     }
 
     server::Server::new(listener, session, subscribers).serve();

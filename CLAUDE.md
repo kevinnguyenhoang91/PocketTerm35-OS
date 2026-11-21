@@ -87,8 +87,9 @@ unit. See `docs/hardware-facts.md`.
   none of these. `pt35d`'s `gamepad.rs` grabs a joystick, reads a QMK
   keyboard ungrabbed, and presses pt35 firmware F-keys on a uinput keyboard,
   so every binding is shared. A sends F22 (Start, the launcher), B F21
-  (Select, the switcher), Y F13 (L, close), X F19, which
-  `sway/uconsole.conf` binds to the Monitor app (btop on the uConsole).
+  (Select, the switcher), Y F13 (L, close). X sends no key: `gamepad.rs`
+  asks the session for the Monitor app (btop on the uConsole) itself. A sway
+  binding on F19 never fired on a CM4 unit.
   `Status::keypad` is `UConsole`. On ClockworkPi's firmware Select goes out
   on release, and not when the trackball scrolled: holding Select makes it
   a wheel. QMK does that in its own firmware.

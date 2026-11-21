@@ -55,7 +55,7 @@ Trackball Scroll. Super is Fn + Alt.
 The keyboard needs no new firmware: `pt35d` reads ClockworkPi's own and
 j1n6's QMK firmware alike, and presses keys the PocketTerm35's patched
 firmware sends: F22 (Start) for A, F21 (Select) for B and F13 (L) for Y. X
-sends F19, which the uConsole's sway config binds to btop. A joystick it
+opens btop itself, with no key or binding in between. A joystick it
 keeps to itself, so a game sees these keys and no gamepad. On QMK firmware
 from v1.9 the buttons are keyboard keys, so an app sees them as well; Start
 stays Super there. The Fn+G gamepad layer moves the D-pad onto the joystick,

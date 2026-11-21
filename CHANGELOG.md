@@ -31,6 +31,8 @@
 - The uConsole's A B X Y work with j1n6's QMK keyboard firmware too, which
   sends them as keyboard keys from v1.9 and as joystick buttons before.
   Only ClockworkPi's own firmware was read.
+- X on the uConsole opens btop. It went through a sway binding on F19,
+  which never fired; pt35d now opens it itself.
 - A restarted pt35d clears the bindings the last one left. An old Mouse
   mode no longer keeps the D-pad moving the cursor until a reboot.
 

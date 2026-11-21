@@ -1,12 +1,14 @@
-//! The uConsole's face buttons, as keys.
+//! The uConsole's face buttons.
 //!
 //! sway binds only keys, and no firmware sends the face buttons as keys sway
 //! has a use for. This thread reads them and presses a key the pt35 firmware
 //! sends on a uinput keyboard of its own, so the PocketTerm35's bindings serve
 //! both: A is F22 (Start, the launcher), B is F21 (Select, the window
-//! switcher), Y is F13 (L, close the window) and X is F19, which
-//! `sway/uconsole.conf` binds to the Monitor app. The uConsole's L and R are
-//! the trackball's mouse buttons, so no face button has to stand for them.
+//! switcher) and Y is F13 (L, close the window). X opens the Monitor app
+//! itself, through the session: a sway binding of its own on F19 never fired
+//! on a CM4 unit, and a launch from here needs no binding at all. The
+//! uConsole's L and R are the trackball's mouse buttons, so no face button
+//! has to stand for them.
 //!
 //! Two keyboard firmwares are about, and they differ in what the buttons send:
 //!
@@ -27,9 +29,14 @@ use std::fs::File;
 use std::io::Read;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use pt35_common::ipc::{Event, Request, Response};
+
 use crate::hardware::bitmap_has;
+use crate::server::Subscribers;
+use crate::state::Session;
 use crate::vkbd::FaceKeys;
 
 const EV_KEY: u16 = 1;
@@ -51,14 +58,24 @@ const BTN_JOYSTICK: u16 = 0x120;
 
 /// The pt35 firmware's keys, which the shell binds.
 const F13: u16 = 183;
-const F19: u16 = 189;
 const F21: u16 = 191;
 const F22: u16 = 192;
 
-/// One way the buttons arrive: event code to the key it stands for.
+/// What a button does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Out {
+    /// Hold this key down for as long as the button is.
+    Key(u16),
+    /// Open the Monitor app, or bring it to the front, on the press.
+    Monitor,
+}
+
+use Out::{Key, Monitor};
+
+/// One way the buttons arrive: event code to what it does.
 #[derive(Debug, PartialEq, Eq)]
 struct Layout {
-    keys: &'static [(u16, u16)],
+    keys: &'static [(u16, Out)],
     /// Sent on release, and only if the trackball did not scroll: ClockworkPi's
     /// Select, which the keyboard turns into a wheel modifier.
     select: Option<u16>,
@@ -68,11 +85,11 @@ struct Layout {
 /// Select and Start.
 const STOCK_JOYSTICK: Layout = Layout {
     keys: &[
-        (BTN_JOYSTICK, F19),
-        (BTN_JOYSTICK + 1, F22),
-        (BTN_JOYSTICK + 2, F21),
-        (BTN_JOYSTICK + 3, F13),
-        (BTN_JOYSTICK + 9, F22),
+        (BTN_JOYSTICK, Monitor),
+        (BTN_JOYSTICK + 1, Key(F22)),
+        (BTN_JOYSTICK + 2, Key(F21)),
+        (BTN_JOYSTICK + 3, Key(F13)),
+        (BTN_JOYSTICK + 9, Key(F22)),
     ],
     select: Some(BTN_JOYSTICK + 8),
 };
@@ -82,12 +99,12 @@ const STOCK_JOYSTICK: Layout = Layout {
 /// itself.
 const QMK_JOYSTICK: Layout = Layout {
     keys: &[
-        (BTN_JOYSTICK, F22),
-        (BTN_JOYSTICK + 1, F21),
-        (BTN_JOYSTICK + 2, F19),
-        (BTN_JOYSTICK + 3, F13),
-        (BTN_JOYSTICK + 4, F21),
-        (BTN_JOYSTICK + 5, F22),
+        (BTN_JOYSTICK, Key(F22)),
+        (BTN_JOYSTICK + 1, Key(F21)),
+        (BTN_JOYSTICK + 2, Monitor),
+        (BTN_JOYSTICK + 3, Key(F13)),
+        (BTN_JOYSTICK + 4, Key(F21)),
+        (BTN_JOYSTICK + 5, Key(F22)),
     ],
     select: None,
 };
@@ -97,11 +114,11 @@ const QMK_JOYSTICK: Layout = Layout {
 /// Select as Front. Start is Super, and stays it.
 const QMK_KEYS: Layout = Layout {
     keys: &[
-        (KEY_OPEN, F22),
-        (KEY_STOP, F21),
-        (KEY_UNKNOWN, F19),
-        (KEY_PROPS, F13),
-        (KEY_FRONT, F21),
+        (KEY_OPEN, Key(F22)),
+        (KEY_STOP, Key(F21)),
+        (KEY_UNKNOWN, Monitor),
+        (KEY_PROPS, Key(F13)),
+        (KEY_FRONT, Key(F21)),
     ],
     select: None,
 };
@@ -146,16 +163,31 @@ extern "C" {
     fn poll(fds: *mut PollFd, nfds: u64, timeout: i32) -> i32;
 }
 
-pub fn spawn() {
+pub fn spawn(session: Arc<Mutex<Session>>, subscribers: Arc<Subscribers>) {
     let spawned = std::thread::Builder::new()
         .name("gamepad".into())
-        .spawn(run);
+        .spawn(move || run(&session, &subscribers));
     if let Err(e) = spawned {
         log::warn!("no uConsole face buttons: {e}");
     }
 }
 
-fn run() {
+/// The Monitor app, as if picked in the launcher. A failure is a toast, as
+/// any request's is.
+fn open_monitor(session: &Mutex<Session>, subscribers: &Subscribers) {
+    let mut session = session.lock().expect("session");
+    if let Response::Error { message } = session.handle(Request::Launch {
+        app: "monitor".into(),
+    }) {
+        log::warn!("X: {message}");
+    }
+    subscribers.broadcast(&Event::Status(session.status.clone()));
+    for note in &session.take_notifications() {
+        subscribers.broadcast(note);
+    }
+}
+
+fn run(session: &Mutex<Session>, subscribers: &Subscribers) {
     // Made before the buttons are found: sway takes a moment to adopt a new
     // keyboard, and the first press must not be the one that is lost.
     let mut keys = match FaceKeys::open() {
@@ -165,12 +197,13 @@ fn run() {
             return;
         }
     };
+    let monitor = || open_monitor(session, subscribers);
     let mut missing_said = false;
     loop {
         match find(Path::new("/sys/class/input")) {
             Some(found) => {
                 missing_said = false;
-                if let Err(e) = serve(&found, &mut keys) {
+                if let Err(e) = serve(&found, &mut keys, &monitor) {
                     log::info!("uConsole face buttons: {e}");
                 }
             }
@@ -255,7 +288,7 @@ fn find(class: &Path) -> Option<Found> {
 }
 
 /// Turn button events into key events until a device goes away.
-fn serve(found: &Found, keys: &mut FaceKeys) -> std::io::Result<()> {
+fn serve(found: &Found, keys: &mut FaceKeys, monitor: &dyn Fn()) -> std::io::Result<()> {
     let mut files = Vec::with_capacity(found.sources.len());
     for source in &found.sources {
         let file = File::open(&source.path)?;
@@ -317,8 +350,12 @@ fn serve(found: &Found, keys: &mut FaceKeys) -> std::io::Result<()> {
             }
             let layout = found.sources[index].layout;
             for (kind, code, value) in events(&buf[..n]) {
-                for (key, down) in buttons.press(layout, kind, code, value) {
-                    keys.send(key, down)?;
+                for (out, down) in buttons.press(layout, kind, code, value) {
+                    match out {
+                        Key(key) => keys.send(key, down)?,
+                        Monitor if down => monitor(),
+                        Monitor => {}
+                    }
                 }
             }
         }
@@ -356,9 +393,9 @@ impl Buttons {
         }
     }
 
-    /// The key presses one event stands for. A key's repeats (value 2) are
-    /// dropped: the shell's bindings do not repeat.
-    fn press(&mut self, layout: &Layout, kind: u16, code: u16, value: i32) -> Vec<(u16, bool)> {
+    /// What one event does. A key's repeats (value 2) are dropped: the
+    /// shell's bindings do not repeat.
+    fn press(&mut self, layout: &Layout, kind: u16, code: u16, value: i32) -> Vec<(Out, bool)> {
         if kind != EV_KEY {
             return Vec::new();
         }
@@ -369,7 +406,7 @@ impl Buttons {
                     Vec::new()
                 }
                 0 => match self.select.take() {
-                    Some(at) if at == self.scrolls => vec![(F21, true), (F21, false)],
+                    Some(at) if at == self.scrolls => vec![(Key(F21), true), (Key(F21), false)],
                     _ => Vec::new(),
                 },
                 _ => Vec::new(),
@@ -382,7 +419,7 @@ impl Buttons {
             .keys
             .iter()
             .find(|(button, _)| *button == code)
-            .map(|&(_, key)| vec![(key, value == 1)])
+            .map(|&(_, out)| vec![(out, value == 1)])
             .unwrap_or_default()
     }
 }
@@ -392,7 +429,7 @@ mod tests {
     use super::*;
 
     /// A, B, X and Y on each layout, in that order.
-    fn abxy(layout: &Layout) -> Vec<u16> {
+    fn abxy(layout: &Layout) -> Vec<Out> {
         let mut buttons = Buttons::default();
         let codes: &[u16] = match layout {
             l if *l == STOCK_JOYSTICK => &[
@@ -423,7 +460,11 @@ mod tests {
     #[test]
     fn a_b_x_y_are_the_launcher_switcher_monitor_and_close_on_every_firmware() {
         for layout in [&STOCK_JOYSTICK, &QMK_JOYSTICK, &QMK_KEYS] {
-            assert_eq!(abxy(layout), [F22, F21, F19, F13], "{layout:?}");
+            assert_eq!(
+                abxy(layout),
+                [Key(F22), Key(F21), Monitor, Key(F13)],
+                "{layout:?}"
+            );
         }
     }
 
@@ -440,7 +481,7 @@ mod tests {
         assert!(buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 1).is_empty());
         assert_eq!(
             buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 0),
-            [(F21, true), (F21, false)]
+            [(Key(F21), true), (Key(F21), false)]
         );
 
         assert!(buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 1).is_empty());
