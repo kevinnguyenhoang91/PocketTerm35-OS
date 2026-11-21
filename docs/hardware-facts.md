@@ -169,7 +169,8 @@ The keyboard runs one of two firmwares, and the face buttons differ:
   Select sends `KEY_FRONT` and Start is Super. Before v1.9, and in its Fn+G
   gamepad layer, A B X Y Select Start are joystick buttons 1 to 6
   (`BTN_TRIGGER` to `BTN_PINKIE`), and Fn+G puts the D-pad on the joystick's
-  axes. It does Select's tap-on-release itself.
+  axes. It does Select's tap-on-release itself. evtest on that CM4 unit's
+  joystick: A `BTN_TRIGGER`, B `BTN_THUMB`, X `BTN_THUMB2`, Y `BTN_TOP`.
 
 | control | sends |
 |---|---|
