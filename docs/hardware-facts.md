@@ -151,11 +151,25 @@ reason. The output is `DSI-1` on a CM4 and `DSI-2` on a CM5, where the panel
 hangs off RP1. The panel is 5", about 11.6 px/mm, so `pt35/uconsole/theme.toml`
 makes every size 1.3 times the PocketTerm35's.
 
-### Keyboard: STM32, keys plus a joystick
-USB `1eaf:0024`, "ClockworkPI uConsole": USBComposite's default ids. One HID
-interface with four application collections, which Linux splits into
-Keyboard, Mouse, Consumer Control and a joystick, plus a CDC serial port
-(`/dev/ttyACM0`) that the firmware never reads.
+### Keyboard: STM32, two firmwares
+The keyboard runs one of two firmwares, and the face buttons differ:
+
+- **ClockworkPi's own.** USB `1eaf:0024`, "ClockworkPI uConsole":
+  USBComposite's default ids. One HID interface with four application
+  collections, which Linux splits into Keyboard, Mouse, Consumer Control and
+  a joystick, plus a CDC serial port (`/dev/ttyACM0`) that the firmware
+  never reads. The table below is this firmware.
+- **j1n6's QMK firmware** ([qmk-uconsole](https://github.com/j1n6/qmk-uconsole)).
+  USB `feed:0000`, "Clockwork uConsole Keyboard": QMK's default ids, so the
+  name is what tells it from another QMK keyboard. Seen on a CM4 unit,
+  2026-11-22: two keyboard devices (6KRO and NKRO), a Mouse, System Control,
+  Consumer Control and a joystick with six buttons. From v1.9, A B X Y send
+  HID Execute, Stop, System Request and Menu on the keyboard device, which
+  Linux reads as `KEY_OPEN`, `KEY_STOP`, `KEY_UNKNOWN` and `KEY_PROPS`.
+  Select sends `KEY_FRONT` and Start is Super. Before v1.9, and in its Fn+G
+  gamepad layer, A B X Y Select Start are joystick buttons 1 to 6
+  (`BTN_TRIGGER` to `BTN_PINKIE`), and Fn+G puts the D-pad on the joystick's
+  axes. It does Select's tap-on-release itself.
 
 | control | sends |
 |---|---|
@@ -168,11 +182,13 @@ Keyboard, Mouse, Consumer Control and a joystick, plus a CDC serial port
 | Fn + Alt | Super |
 
 L and R are the trackball's mouse buttons, not gamepad buttons, so they are
-clicks and nothing can bind them. Switch 2 on the back turns the buttons
-into letters: A B X Y type `j k u i`, Select is Space and Start is Enter.
-The shell needs it off. `pt35d`'s `gamepad.rs` grabs the joystick and
-presses pt35 firmware keys for it on a uinput keyboard. Select goes out on
-release, and not at all when the trackball scrolled meanwhile.
+clicks and nothing can bind them. Switch 2 on the back turns ClockworkPi's
+buttons into letters: A B X Y type `j k u i`, Select is Space and Start is
+Enter. The shell needs it off. `pt35d`'s `gamepad.rs` knows both firmwares.
+It grabs a joystick and reads the QMK keyboard devices without a grab, and
+presses pt35 firmware keys for the buttons on a uinput keyboard. With
+ClockworkPi's firmware, Select goes out on release, and not at all when the
+trackball scrolled meanwhile.
 
 ### Backlight
 `ocp8178-backlight`, in `/sys/class/backlight`. `max_brightness` is 9. A

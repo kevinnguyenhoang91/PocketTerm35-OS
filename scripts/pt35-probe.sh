@@ -59,7 +59,7 @@ run 'ls -l /dev/input/by-id/ /dev/input/by-path/ 2>/dev/null'
 run 'lsusb'
 note '[MANUAL] For every keyboard-ish event node run:  sudo evtest /dev/input/eventN'
 note '[MANUAL] Press, one at a time, and record the emitted code: every Fn combination, each D-pad direction, each gaming button, the shoulder buttons, volume and brightness keys.'
-note 'Expected on a PocketTerm35: the D-pad and buttons arrive as keys (KEY_UP, F13-F18) on the keyboard device. On a uConsole (1eaf:0024): the D-pad as keys, A B X Y Select Start as joystick buttons on a device of their own.'
+note 'Expected on a PocketTerm35: the D-pad and buttons arrive as keys (KEY_UP, F13-F18) on the keyboard device. On a uConsole with ClockworkPi firmware (1eaf:0024): the D-pad as keys, A B X Y Select Start as joystick buttons on a device of their own. With j1n6 QMK firmware (feed:0000) from v1.9: A B X Y as KEY_OPEN KEY_STOP KEY_UNKNOWN KEY_PROPS on the keyboard device.'
 
 say 'Touchscreen'
 run 'dmesg | grep -i -E "goodix|gt911|touch" | tail -n 15'

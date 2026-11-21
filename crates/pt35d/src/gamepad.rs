@@ -1,20 +1,27 @@
 //! The uConsole's face buttons, as keys.
 //!
-//! Its keyboard sends A B X Y, Select and Start as joystick buttons, and sway
-//! binds only keys. This thread reads the joystick and presses a key the pt35
-//! firmware sends on a uinput keyboard of its own, so the PocketTerm35's
-//! bindings serve both. The joystick is grabbed: the shell owns the buttons,
-//! and a game would get both otherwise.
+//! sway binds only keys, and no firmware sends the face buttons as keys sway
+//! has a use for. This thread reads them and presses a key the pt35 firmware
+//! sends on a uinput keyboard of its own, so the PocketTerm35's bindings serve
+//! both: A is F22 (Start, the launcher), B is F21 (Select, the window
+//! switcher), Y is F13 (L, close the window) and X is F19, which
+//! `sway/uconsole.conf` binds to the Monitor app. The uConsole's L and R are
+//! the trackball's mouse buttons, so no face button has to stand for them.
 //!
-//! The uConsole's L and R are the trackball's mouse buttons, not gamepad
-//! buttons, so the face buttons take the jobs that need a button of their
-//! own: A is Start (the launcher), B is Select (the window switcher), Y is
-//! the PocketTerm35's L (close the window). X is F19, which
-//! `sway/uconsole.conf` binds to the Monitor app, btop.
+//! Two keyboard firmwares are about, and they differ in what the buttons send:
+//!
+//! - ClockworkPi's own (`1eaf:0024`): A B X Y, Select and Start are joystick
+//!   buttons. The joystick is grabbed: a game would get both otherwise.
+//! - j1n6's QMK firmware (`feed:0000`, "Clockwork uConsole Keyboard"): from
+//!   v1.9, keyboard keys on the keyboard device (Execute, Stop, System
+//!   Request, Menu and Select; Start is Super). That device carries the
+//!   letters too, so it is read and not grabbed: an app also sees those keys,
+//!   and none uses them. Before v1.9, and in its gamepad layer (Fn+G),
+//!   joystick buttons 1 to 6.
 //!
 //! Select goes out when it is let go, and only if the trackball did not
-//! scroll meanwhile: the keyboard turns the trackball into a wheel while
-//! Select is held.
+//! scroll meanwhile: either keyboard turns the trackball into a wheel while
+//! Select is held. QMK does that itself.
 
 use std::fs::File;
 use std::io::Read;
@@ -25,30 +32,96 @@ use std::time::Duration;
 use crate::hardware::bitmap_has;
 use crate::vkbd::FaceKeys;
 
-/// USBComposite's default ids, which the uConsole keyboard firmware keeps.
-const VENDOR: &str = "1eaf";
-const PRODUCT: &str = "0024";
-
 const EV_KEY: u16 = 1;
 const EV_REL: u16 = 2;
 const REL_HWHEEL: u16 = 6;
 const REL_WHEEL: u16 = 8;
 const REL_WHEEL_HI_RES: u16 = 11;
 const REL_HWHEEL_HI_RES: u16 = 12;
-const KEY_A: usize = 30;
+
+const KEY_A: u16 = 30;
+const KEY_STOP: u16 = 128;
+const KEY_PROPS: u16 = 130;
+const KEY_FRONT: u16 = 132;
+const KEY_OPEN: u16 = 134;
+/// What Linux makes of a key it has no code for: QMK's System Request.
+const KEY_UNKNOWN: u16 = 240;
 /// HID button n of a joystick arrives as `BTN_JOYSTICK + n - 1`.
 const BTN_JOYSTICK: u16 = 0x120;
-const SELECT: u16 = BTN_JOYSTICK + 8;
-const F21: u16 = 191;
 
-/// Joystick button to the pt35 firmware's key it stands for.
-const KEYS: [(u16, u16); 5] = [
-    (BTN_JOYSTICK, 189),     // button 1, X: F19, the Monitor app
-    (BTN_JOYSTICK + 1, 192), // button 2, A: F22, Start: the launcher
-    (BTN_JOYSTICK + 2, 191), // button 3, B: F21, Select: the window switcher
-    (BTN_JOYSTICK + 3, 183), // button 4, Y: F13, L: close the window
-    (BTN_JOYSTICK + 9, 192), // button 10, Start: F22
-];
+/// The pt35 firmware's keys, which the shell binds.
+const F13: u16 = 183;
+const F19: u16 = 189;
+const F21: u16 = 191;
+const F22: u16 = 192;
+
+/// One way the buttons arrive: event code to the key it stands for.
+#[derive(Debug, PartialEq, Eq)]
+struct Layout {
+    keys: &'static [(u16, u16)],
+    /// Sent on release, and only if the trackball did not scroll: ClockworkPi's
+    /// Select, which the keyboard turns into a wheel modifier.
+    select: Option<u16>,
+}
+
+/// ClockworkPi's firmware: joystick buttons 1 to 4 are X A B Y, 9 and 10 are
+/// Select and Start.
+const STOCK_JOYSTICK: Layout = Layout {
+    keys: &[
+        (BTN_JOYSTICK, F19),
+        (BTN_JOYSTICK + 1, F22),
+        (BTN_JOYSTICK + 2, F21),
+        (BTN_JOYSTICK + 3, F13),
+        (BTN_JOYSTICK + 9, F22),
+    ],
+    select: Some(BTN_JOYSTICK + 8),
+};
+
+/// j1n6's QMK firmware before v1.9, and its gamepad layer: joystick buttons
+/// 1 to 6 are A B X Y Select Start. The firmware sends Select on release
+/// itself.
+const QMK_JOYSTICK: Layout = Layout {
+    keys: &[
+        (BTN_JOYSTICK, F22),
+        (BTN_JOYSTICK + 1, F21),
+        (BTN_JOYSTICK + 2, F19),
+        (BTN_JOYSTICK + 3, F13),
+        (BTN_JOYSTICK + 4, F21),
+        (BTN_JOYSTICK + 5, F22),
+    ],
+    select: None,
+};
+
+/// j1n6's QMK firmware from v1.9: HID Execute, Stop, System Request and Menu
+/// for A B X Y, which Linux reads as Open, Stop, an unknown key and Props, and
+/// Select as Front. Start is Super, and stays it.
+const QMK_KEYS: Layout = Layout {
+    keys: &[
+        (KEY_OPEN, F22),
+        (KEY_STOP, F21),
+        (KEY_UNKNOWN, F19),
+        (KEY_PROPS, F13),
+        (KEY_FRONT, F21),
+    ],
+    select: None,
+};
+
+/// Which firmware the keyboard runs, by its USB ids.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Firmware {
+    ClockworkPi,
+    Qmk,
+}
+
+fn firmware(vendor: &str, product: &str, name: &str) -> Option<Firmware> {
+    match (vendor, product) {
+        // USBComposite's default ids, which ClockworkPi's firmware keeps.
+        ("1eaf", "0024") => Some(Firmware::ClockworkPi),
+        // QMK's default ids, which many keyboards keep: the name says which.
+        ("feed", "0000") if name.contains("uConsole") => Some(Firmware::Qmk),
+        _ => None,
+    }
+}
 
 /// How often a missing keyboard is looked for again. It is built in, so it is
 /// missing only while it resets.
@@ -83,7 +156,7 @@ pub fn spawn() {
 }
 
 fn run() {
-    // Made before the joystick is found: sway takes a moment to adopt a new
+    // Made before the buttons are found: sway takes a moment to adopt a new
     // keyboard, and the first press must not be the one that is lost.
     let mut keys = match FaceKeys::open() {
         Ok(keys) => keys,
@@ -98,11 +171,14 @@ fn run() {
             Some(found) => {
                 missing_said = false;
                 if let Err(e) = serve(&found, &mut keys) {
-                    log::info!("uConsole joystick {}: {e}", found.joystick.display());
+                    log::info!("uConsole face buttons: {e}");
                 }
             }
             None if !missing_said => {
-                log::warn!("no uConsole joystick ({VENDOR}:{PRODUCT}); looking again every 3s");
+                log::warn!(
+                    "no uConsole face buttons (1eaf:0024, or feed:0000 named uConsole); \
+                     looking again every 3s"
+                );
                 missing_said = true;
             }
             None => {}
@@ -111,19 +187,27 @@ fn run() {
     }
 }
 
+/// An event device the buttons arrive on.
 #[derive(Debug, PartialEq, Eq)]
-struct Found {
-    joystick: PathBuf,
-    /// The trackball, to see it scroll while Select is held.
-    mouse: Option<PathBuf>,
-    /// Off when the joystick shares a device with the letters: a grab would
-    /// take the keyboard away from sway.
+struct Source {
+    path: PathBuf,
+    /// Only a device with nothing but the buttons on it: a grab would take the
+    /// letters away from sway.
     grab: bool,
+    layout: &'static Layout,
 }
 
-/// The uConsole keyboard's joystick and mouse, under `class` (`/sys/class/input`).
+#[derive(Debug, PartialEq, Eq)]
+struct Found {
+    sources: Vec<Source>,
+    /// The trackball, to see it scroll while Select is held.
+    mouse: Option<PathBuf>,
+}
+
+/// The uConsole keyboard's button and mouse devices, under `class`
+/// (`/sys/class/input`).
 fn find(class: &Path) -> Option<Found> {
-    let mut joystick = None;
+    let mut sources = Vec::new();
     let mut mouse = None;
     let mut entries: Vec<PathBuf> = std::fs::read_dir(class)
         .ok()?
@@ -138,53 +222,72 @@ fn find(class: &Path) -> Option<Found> {
     for event in entries {
         let device = event.join("device");
         let read = |file: &str| std::fs::read_to_string(device.join(file)).unwrap_or_default();
-        if read("id/vendor").trim() != VENDOR || read("id/product").trim() != PRODUCT {
+        let Some(firmware) = firmware(
+            read("id/vendor").trim(),
+            read("id/product").trim(),
+            read("name").trim(),
+        ) else {
             continue;
-        }
-        let node = Path::new("/dev/input").join(event.file_name()?);
+        };
+        let path = Path::new("/dev/input").join(event.file_name()?);
         let keys = read("capabilities/key");
-        if joystick.is_none() && bitmap_has(&keys, BTN_JOYSTICK as usize) {
-            joystick = Some((node, !bitmap_has(&keys, KEY_A)));
+        let has = |code: u16| bitmap_has(&keys, code as usize);
+        if has(BTN_JOYSTICK) {
+            sources.push(Source {
+                path,
+                grab: !has(KEY_A),
+                layout: match firmware {
+                    Firmware::ClockworkPi => &STOCK_JOYSTICK,
+                    Firmware::Qmk => &QMK_JOYSTICK,
+                },
+            });
+        } else if firmware == Firmware::Qmk && has(KEY_A) && has(KEY_OPEN) {
+            sources.push(Source {
+                path,
+                grab: false,
+                layout: &QMK_KEYS,
+            });
         } else if mouse.is_none() && bitmap_has(&read("capabilities/rel"), REL_WHEEL as usize) {
-            mouse = Some(node);
+            mouse = Some(path);
         }
     }
-    let (joystick, grab) = joystick?;
-    Some(Found {
-        joystick,
-        mouse,
-        grab,
-    })
+    (!sources.is_empty()).then_some(Found { sources, mouse })
 }
 
-/// Turn joystick events into key events until the device goes away.
+/// Turn button events into key events until a device goes away.
 fn serve(found: &Found, keys: &mut FaceKeys) -> std::io::Result<()> {
-    let mut joystick = File::open(&found.joystick)?;
-    // SAFETY: EVIOCGRAB takes an int by value.
-    if found.grab && unsafe { ioctl(joystick.as_raw_fd(), EVIOCGRAB, 1) } < 0 {
-        return Err(std::io::Error::last_os_error());
+    let mut files = Vec::with_capacity(found.sources.len());
+    for source in &found.sources {
+        let file = File::open(&source.path)?;
+        // SAFETY: EVIOCGRAB takes an int by value.
+        if source.grab && unsafe { ioctl(file.as_raw_fd(), EVIOCGRAB, 1) } < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        files.push(file);
     }
     // Without the trackball Select still works; it only cannot tell a scroll.
     let mut mouse = found.mouse.as_ref().and_then(|path| File::open(path).ok());
+    let paths: Vec<String> = found
+        .sources
+        .iter()
+        .map(|s| s.path.display().to_string())
+        .collect();
     log::info!(
-        "uConsole joystick {}: the face buttons are keys",
-        found.joystick.display()
+        "uConsole face buttons on {}: they are keys",
+        paths.join(", ")
     );
     let mut buttons = Buttons::default();
     let mut buf = [0u8; EVENT * 16];
     loop {
-        let mut fds = vec![PollFd {
-            fd: joystick.as_raw_fd(),
-            events: POLLIN,
-            revents: 0,
-        }];
-        if let Some(mouse) = &mouse {
-            fds.push(PollFd {
-                fd: mouse.as_raw_fd(),
+        let mut fds: Vec<PollFd> = files
+            .iter()
+            .chain(mouse.iter())
+            .map(|file| PollFd {
+                fd: file.as_raw_fd(),
                 events: POLLIN,
                 revents: 0,
-            });
-        }
+            })
+            .collect();
         // SAFETY: `fds` is a live array of `fds.len()` pollfd structs.
         if unsafe { poll(fds.as_mut_ptr(), fds.len() as u64, -1) } < 0 {
             let e = std::io::Error::last_os_error();
@@ -193,7 +296,7 @@ fn serve(found: &Found, keys: &mut FaceKeys) -> std::io::Result<()> {
             }
             return Err(e);
         }
-        if fds.get(1).is_some_and(|fd| fd.revents != 0) {
+        if fds.get(files.len()).is_some_and(|fd| fd.revents != 0) {
             match mouse.as_mut().map(|m| m.read(&mut buf)) {
                 Some(Ok(n)) if n > 0 => {
                     for (kind, code, _) in events(&buf[..n]) {
@@ -204,13 +307,17 @@ fn serve(found: &Found, keys: &mut FaceKeys) -> std::io::Result<()> {
                 _ => mouse = None,
             }
         }
-        if fds[0].revents != 0 {
-            let n = joystick.read(&mut buf)?;
+        for (index, file) in files.iter_mut().enumerate() {
+            if fds[index].revents == 0 {
+                continue;
+            }
+            let n = file.read(&mut buf)?;
             if n == 0 {
                 return Err(std::io::ErrorKind::UnexpectedEof.into());
             }
+            let layout = found.sources[index].layout;
             for (kind, code, value) in events(&buf[..n]) {
-                for (key, down) in buttons.joystick(kind, code, value) {
+                for (key, down) in buttons.press(layout, kind, code, value) {
                     keys.send(key, down)?;
                 }
             }
@@ -249,27 +356,34 @@ impl Buttons {
         }
     }
 
-    /// The key presses one joystick event stands for.
-    fn joystick(&mut self, kind: u16, code: u16, value: i32) -> Vec<(u16, bool)> {
+    /// The key presses one event stands for. A key's repeats (value 2) are
+    /// dropped: the shell's bindings do not repeat.
+    fn press(&mut self, layout: &Layout, kind: u16, code: u16, value: i32) -> Vec<(u16, bool)> {
         if kind != EV_KEY {
             return Vec::new();
         }
-        match (code, value) {
-            (SELECT, 1) => {
-                self.select = Some(self.scrolls);
-                Vec::new()
-            }
-            (SELECT, 0) => match self.select.take() {
-                Some(at) if at == self.scrolls => vec![(F21, true), (F21, false)],
+        if layout.select == Some(code) {
+            return match value {
+                1 => {
+                    self.select = Some(self.scrolls);
+                    Vec::new()
+                }
+                0 => match self.select.take() {
+                    Some(at) if at == self.scrolls => vec![(F21, true), (F21, false)],
+                    _ => Vec::new(),
+                },
                 _ => Vec::new(),
-            },
-            (_, 0 | 1) => KEYS
-                .iter()
-                .find(|(button, _)| *button == code)
-                .map(|&(_, key)| vec![(key, value == 1)])
-                .unwrap_or_default(),
-            _ => Vec::new(),
+            };
         }
+        if !matches!(value, 0 | 1) {
+            return Vec::new();
+        }
+        layout
+            .keys
+            .iter()
+            .find(|(button, _)| *button == code)
+            .map(|&(_, key)| vec![(key, value == 1)])
+            .unwrap_or_default()
     }
 }
 
@@ -277,80 +391,182 @@ impl Buttons {
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_face_buttons_are_the_launcher_switcher_close_and_monitor() {
+    /// A, B, X and Y on each layout, in that order.
+    fn abxy(layout: &Layout) -> Vec<u16> {
         let mut buttons = Buttons::default();
-        let a = BTN_JOYSTICK + 1;
-        assert_eq!(buttons.joystick(EV_KEY, a, 1), [(192, true)], "A is Start");
-        assert_eq!(buttons.joystick(EV_KEY, a, 0), [(192, false)]);
-        let b = BTN_JOYSTICK + 2;
-        assert_eq!(buttons.joystick(EV_KEY, b, 1), [(F21, true)], "B is Select");
-        let y = BTN_JOYSTICK + 3;
-        assert_eq!(buttons.joystick(EV_KEY, y, 1), [(183, true)], "Y is L");
-        let x = BTN_JOYSTICK;
-        assert_eq!(buttons.joystick(EV_KEY, x, 1), [(189, true)], "X is F19");
-        assert_eq!(buttons.joystick(EV_KEY, BTN_JOYSTICK + 9, 1), [(192, true)]);
+        let codes: &[u16] = match layout {
+            l if *l == STOCK_JOYSTICK => &[
+                BTN_JOYSTICK + 1,
+                BTN_JOYSTICK + 2,
+                BTN_JOYSTICK,
+                BTN_JOYSTICK + 3,
+            ],
+            l if *l == QMK_JOYSTICK => &[
+                BTN_JOYSTICK,
+                BTN_JOYSTICK + 1,
+                BTN_JOYSTICK + 2,
+                BTN_JOYSTICK + 3,
+            ],
+            _ => &[KEY_OPEN, KEY_STOP, KEY_UNKNOWN, KEY_PROPS],
+        };
+        codes
+            .iter()
+            .map(|&code| {
+                let down = buttons.press(layout, EV_KEY, code, 1);
+                assert_eq!(buttons.press(layout, EV_KEY, code, 0).len(), 1);
+                assert_eq!(down.len(), 1, "code {code} sends nothing");
+                down[0].0
+            })
+            .collect()
     }
 
     #[test]
-    fn select_is_a_tap_on_release_unless_the_trackball_scrolled() {
+    fn a_b_x_y_are_the_launcher_switcher_monitor_and_close_on_every_firmware() {
+        for layout in [&STOCK_JOYSTICK, &QMK_JOYSTICK, &QMK_KEYS] {
+            assert_eq!(abxy(layout), [F22, F21, F19, F13], "{layout:?}");
+        }
+    }
+
+    #[test]
+    fn a_key_held_down_does_not_repeat_its_binding() {
         let mut buttons = Buttons::default();
-        assert!(buttons.joystick(EV_KEY, SELECT, 1).is_empty());
+        assert!(buttons.press(&QMK_KEYS, EV_KEY, KEY_OPEN, 2).is_empty());
+    }
+
+    #[test]
+    fn stock_select_is_a_tap_on_release_unless_the_trackball_scrolled() {
+        let select = BTN_JOYSTICK + 8;
+        let mut buttons = Buttons::default();
+        assert!(buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 1).is_empty());
         assert_eq!(
-            buttons.joystick(EV_KEY, SELECT, 0),
+            buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 0),
             [(F21, true), (F21, false)]
         );
 
-        assert!(buttons.joystick(EV_KEY, SELECT, 1).is_empty());
+        assert!(buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 1).is_empty());
         buttons.mouse(EV_REL, REL_WHEEL);
         assert!(
-            buttons.joystick(EV_KEY, SELECT, 0).is_empty(),
+            buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 0).is_empty(),
             "Select held to scroll is not the switcher"
         );
     }
 
-    #[test]
-    fn finds_the_joystick_and_grabs_it_only_when_it_has_no_letters() {
-        let root = std::env::temp_dir().join(format!("pt35-gamepad-{}", std::process::id()));
+    fn sysfs(name: &str, devices: &[(&str, &[(&str, &str)])]) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("pt35-gamepad-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let device = |event: &str, files: &[(&str, &str)]| {
+        for (event, files) in devices {
             let dir = root.join(event).join("device");
             std::fs::create_dir_all(dir.join("id")).unwrap();
             std::fs::create_dir_all(dir.join("capabilities")).unwrap();
-            for (file, text) in files {
+            for (file, text) in *files {
                 std::fs::write(dir.join(file), text).unwrap();
             }
-        };
+        }
+        root
+    }
+
+    #[test]
+    fn finds_the_stock_joystick_and_grabs_it_only_when_it_has_no_letters() {
         let ids = [("id/vendor", "1eaf\n"), ("id/product", "0024\n")];
         // KEY_A is bit 30 of the lowest word; BTN_JOYSTICK, 0x120, is bit 32
         // of the fifth.
-        device(
-            "event2",
+        let root = sysfs(
+            "stock",
             &[
-                ids[0],
-                ids[1],
-                ("capabilities/key", "ffffffff 0 0 0 40000000\n"),
+                (
+                    "event2",
+                    &[
+                        ids[0],
+                        ids[1],
+                        ("capabilities/key", "ffffffff 0 0 0 40000000\n"),
+                    ],
+                ),
+                (
+                    "event3",
+                    &[
+                        ids[0],
+                        ids[1],
+                        ("capabilities/key", "3ff00000000 0 0 0 0\n"),
+                    ],
+                ),
+                ("event4", &[ids[0], ids[1], ("capabilities/rel", "143\n")]),
+                (
+                    "event5",
+                    &[("id/vendor", "1209\n"), ("id/product", "0001\n")],
+                ),
             ],
-        );
-        device(
-            "event3",
-            &[
-                ids[0],
-                ids[1],
-                ("capabilities/key", "3ff00000000 0 0 0 0\n"),
-            ],
-        );
-        device("event4", &[ids[0], ids[1], ("capabilities/rel", "143\n")]);
-        device(
-            "event5",
-            &[("id/vendor", "1209\n"), ("id/product", "0001\n")],
         );
         assert_eq!(
             find(&root),
             Some(Found {
-                joystick: PathBuf::from("/dev/input/event3"),
+                sources: vec![Source {
+                    path: PathBuf::from("/dev/input/event3"),
+                    grab: true,
+                    layout: &STOCK_JOYSTICK,
+                }],
                 mouse: Some(PathBuf::from("/dev/input/event4")),
-                grab: true,
+            })
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// The devices of a uConsole on j1n6's QMK firmware, as its sysfs has them.
+    #[test]
+    fn finds_both_keyboards_and_the_joystick_on_qmk_firmware() {
+        let qmk = |name: &'static str, key: &'static str| -> Vec<(&'static str, &'static str)> {
+            vec![
+                ("id/vendor", "feed\n"),
+                ("id/product", "0000\n"),
+                ("name", name),
+                ("capabilities/key", key),
+            ]
+        };
+        let keyboard = qmk(
+            "Clockwork uConsole Keyboard\n",
+            "1000000000007 ff9f207ac14057ff febeffdfffefffff fffffffffffffffe\n",
+        );
+        let mut mouse = qmk("Clockwork uConsole Keyboard Mouse\n", "ff0000 0 0 0 0\n");
+        mouse.push(("capabilities/rel", "1943\n"));
+        let joystick = qmk("Clockwork uConsole Keyboard\n", "3f00000000 0 0 0 0\n");
+        let consumer = qmk(
+            "Clockwork uConsole Keyboard Consumer Control\n",
+            "733fff 0 0 483ffff17aff32d bfd4444600000000 1 130ff38b17c000 677bfad9415fed 19ed68000004400 10000002\n",
+        );
+        let nkro = qmk(
+            "Clockwork uConsole Keyboard\n",
+            "1000000000007 ff98007a000007ff febeffdfffefffff fffffffffffffffe\n",
+        );
+        let other_qmk = [
+            ("id/vendor", "feed\n"),
+            ("id/product", "0000\n"),
+            ("name", "Some Other Keyboard\n"),
+            ("capabilities/key", "3f00000000 0 0 0 0\n"),
+        ];
+        let root = sysfs(
+            "qmk",
+            &[
+                ("event0", &keyboard),
+                ("event1", &mouse),
+                ("event2", &joystick),
+                ("event4", &consumer),
+                ("event5", &nkro),
+                ("event6", &other_qmk),
+            ],
+        );
+        let source = |event: &str, grab, layout| Source {
+            path: PathBuf::from(format!("/dev/input/{event}")),
+            grab,
+            layout,
+        };
+        assert_eq!(
+            find(&root),
+            Some(Found {
+                sources: vec![
+                    source("event0", false, &QMK_KEYS),
+                    source("event2", true, &QMK_JOYSTICK),
+                    source("event5", false, &QMK_KEYS),
+                ],
+                mouse: Some(PathBuf::from("/dev/input/event1")),
             })
         );
         std::fs::remove_dir_all(&root).unwrap();

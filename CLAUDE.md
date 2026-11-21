@@ -79,15 +79,19 @@ unit. See `docs/hardware-facts.md`.
   1280x720 from the DT's panel orientation, so no `transform` is set. 1.3
   times the PocketTerm35's pixel density: `pt35/uconsole/theme.toml` scales
   every size by that, and `pt35-session` sets toolkits to 1.25.
-- Keyboard: STM32 at USB `1eaf:0024`. Keys, a mouse (the trackball) and a
-  joystick. The D-pad is arrows. A B X Y, Select and Start are joystick
-  buttons, which sway cannot bind. `pt35d`'s `gamepad.rs` grabs the joystick
-  and presses pt35 firmware F-keys on a uinput keyboard, so every binding is
-  shared. A sends F22 (Start, the launcher), B F21 (Select, the switcher),
-  Y F13 (L, close), X F19, which `sway/uconsole.conf` binds to the Monitor
-  app (btop on the uConsole). `Status::keypad` is `UConsole`. Select goes
-  out on release, and not when the trackball scrolled: holding Select makes
-  it a wheel.
+- Keyboard: STM32, on ClockworkPi's firmware (`1eaf:0024`) or j1n6's QMK
+  firmware (`feed:0000`, named "Clockwork uConsole Keyboard"). ClockworkPi's
+  sends A B X Y, Select and Start as joystick buttons; QMK from v1.9 as
+  keyboard keys (Open, Stop, an unknown key, Props, Front; Start is Super),
+  before that and in its Fn+G layer as joystick buttons 1-6. sway binds
+  none of these. `pt35d`'s `gamepad.rs` grabs a joystick, reads a QMK
+  keyboard ungrabbed, and presses pt35 firmware F-keys on a uinput keyboard,
+  so every binding is shared. A sends F22 (Start, the launcher), B F21
+  (Select, the switcher), Y F13 (L, close), X F19, which
+  `sway/uconsole.conf` binds to the Monitor app (btop on the uConsole).
+  `Status::keypad` is `UConsole`. On ClockworkPi's firmware Select goes out
+  on release, and not when the trackball scrolled: holding Select makes it
+  a wheel. QMK does that in its own firmware.
 - L and R are the trackball's left and right mouse buttons, not gamepad
   buttons: sway sees plain clicks and no binding can use them. One input
   mode (`Keypad::one_mode`): the trackball, L and R are the mouse, and the

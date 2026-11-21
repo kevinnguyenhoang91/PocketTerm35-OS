@@ -28,6 +28,9 @@
 - A brightness step on a backlight with few levels always moves it.
 - Quick settings' sliders start past their labels instead of over them, at
   any font size. The legend's pills grow with the hint font.
+- The uConsole's A B X Y work with j1n6's QMK keyboard firmware too, which
+  sends them as keyboard keys from v1.9 and as joystick buttons before.
+  Only ClockworkPi's own firmware was read.
 - A restarted pt35d clears the bindings the last one left. An old Mouse
   mode no longer keeps the D-pad moving the cursor until a reboot.
 

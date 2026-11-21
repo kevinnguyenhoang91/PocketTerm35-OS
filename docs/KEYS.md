@@ -52,12 +52,16 @@ Enter and Backspace.
 The menu's legend shows the trackball: L Click, R Options, Select +
 Trackball Scroll. Super is Fn + Alt.
 
-The keyboard needs no new firmware. It sends A B X Y, Select and Start as
-joystick buttons, and `pt35d` presses keys the PocketTerm35's patched
+The keyboard needs no new firmware: `pt35d` reads ClockworkPi's own and
+j1n6's QMK firmware alike, and presses keys the PocketTerm35's patched
 firmware sends: F22 (Start) for A, F21 (Select) for B and F13 (L) for Y. X
-sends F19, which the uConsole's sway config binds to btop. It keeps the
-joystick to itself, so a game sees these keys and no gamepad. Switch 2 on
-the back of the keyboard must be off: on, A B X Y type `j k u i`.
+sends F19, which the uConsole's sway config binds to btop. A joystick it
+keeps to itself, so a game sees these keys and no gamepad. On QMK firmware
+from v1.9 the buttons are keyboard keys, so an app sees them as well; Start
+stays Super there. The Fn+G gamepad layer moves the D-pad onto the joystick,
+where the shell does not read it: press Fn+G again to get the arrows back.
+With ClockworkPi's firmware, switch 2 on the back of the keyboard must be
+off: on, A B X Y type `j k u i`.
 
 Fn + Select is Print Screen, a screenshot. Fn + `,` and Fn + `.` set the
 brightness.
