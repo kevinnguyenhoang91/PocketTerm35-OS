@@ -133,8 +133,10 @@ Then try the controls:
 
 | try | expect |
 |---|---|
-| D-pad, A, B | move, open, back |
-| Start | the menu opens and closes |
+| A | the launcher opens; again over an app, it closes |
+| B | the window switcher |
+| Y | the window in front closes |
+| Start | the launcher opens and closes |
 | Select, let go | the window switcher |
 | hold Select, roll the trackball | it scrolls, no switcher |
 | Fn + `,` and Fn + `.` | brightness down and up |

@@ -150,15 +150,15 @@ impl Keyboard {
     }
 }
 
-/// The uConsole's face buttons, as the keys the pt35 firmware sends for them.
-/// `gamepad` presses and releases them as the joystick buttons go.
+/// The uConsole's face buttons, as keys the pt35 firmware sends. `gamepad`
+/// presses and releases them as the joystick buttons go.
 pub struct FaceKeys {
     file: File,
 }
 
 impl FaceKeys {
-    /// F15 to F18 (X Y B A), F21 (Select) and F22 (Start).
-    pub const KEYS: [u16; 6] = [185, 186, 187, 188, 191, 192];
+    /// F13 (L), F15 (X), F21 (Select) and F22 (Start).
+    pub const KEYS: [u16; 4] = [183, 185, 191, 192];
 
     pub fn open() -> std::io::Result<Self> {
         let file = create(b"pt35 face buttons", 0x3537, &[EV_KEY], &Self::KEYS, &[])?;

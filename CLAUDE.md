@@ -82,15 +82,16 @@ unit. See `docs/hardware-facts.md`.
 - Keyboard: STM32 at USB `1eaf:0024`. Keys, a mouse (the trackball) and a
   joystick. The D-pad is arrows. A B X Y, Select and Start are joystick
   buttons, which sway cannot bind. `pt35d`'s `gamepad.rs` grabs the joystick
-  and presses the pt35 firmware's F-keys on a uinput keyboard, so every
-  binding is shared. `Status::keypad` is `UConsole`. Select goes out on release,
-  and not when the trackball scrolled: holding Select makes it a wheel.
+  and presses pt35 firmware F-keys on a uinput keyboard, so every binding is
+  shared. A sends F22 (Start, the launcher), B F21 (Select, the switcher),
+  Y F13 (L, close), X F15. `Status::keypad` is `UConsole`. Select goes out on
+  release, and not when the trackball scrolled: holding Select makes it a
+  wheel.
 - No L or R buttons, and one input mode (`Keypad::one_mode`): the trackball
-  and its two keys are the mouse, the D-pad stays the arrow keys, and A B X Y
-  keep Buttons mode's bindings. `pt35d` refuses a mode change, the bar hides
-  the mode readout, Quick settings drops Input, and the menu's legend is the
-  trackball's (L Click, R Options, Select + Trackball Scroll). Close is the
-  bar's button or Super+q. Super is Fn+Alt.
+  and its two keys are the mouse, and the D-pad stays the arrow keys. `pt35d`
+  refuses a mode change, the bar hides the mode readout, Quick settings drops
+  Input, and the menu's legend is the trackball's (L Click, R Options,
+  Select + Trackball Scroll). Super is Fn+Alt.
 - Backlight: `ocp8178` in `/sys/class/backlight`, nine levels. A step moves at
   least one level. `70-pt35-backlight.rules` lets `video` write it. No serial
   probing: the keyboard's console belongs to the STM32.

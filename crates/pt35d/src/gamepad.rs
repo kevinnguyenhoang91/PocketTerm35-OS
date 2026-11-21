@@ -1,10 +1,14 @@
 //! The uConsole's face buttons, as keys.
 //!
 //! Its keyboard sends A B X Y, Select and Start as joystick buttons, and sway
-//! binds only keys. This thread reads the joystick and presses the key the
-//! pt35 firmware sends for each button on a uinput keyboard of its own, so
-//! every binding made for the PocketTerm35 works unchanged. The joystick is
-//! grabbed: the shell owns the buttons, and a game would get both otherwise.
+//! binds only keys. This thread reads the joystick and presses a key the pt35
+//! firmware sends on a uinput keyboard of its own, so the PocketTerm35's
+//! bindings serve both. The joystick is grabbed: the shell owns the buttons,
+//! and a game would get both otherwise.
+//!
+//! The uConsole has no L or R, and its trackball is the mouse, so three face
+//! buttons take the jobs that need a button of their own: A is Start (the
+//! launcher), B is Select (the window switcher), Y is L (close the window).
 //!
 //! Select goes out when it is let go, and only if the trackball did not
 //! scroll meanwhile: the keyboard turns the trackball into a wheel while
@@ -35,12 +39,12 @@ const BTN_JOYSTICK: u16 = 0x120;
 const SELECT: u16 = BTN_JOYSTICK + 8;
 const F21: u16 = 191;
 
-/// Joystick button to the pt35 firmware's key for it.
+/// Joystick button to the pt35 firmware's key it stands for.
 const KEYS: [(u16, u16); 5] = [
-    (BTN_JOYSTICK, 185),     // button 1, X: F15
-    (BTN_JOYSTICK + 1, 188), // button 2, A: F18
-    (BTN_JOYSTICK + 2, 187), // button 3, B: F17
-    (BTN_JOYSTICK + 3, 186), // button 4, Y: F16
+    (BTN_JOYSTICK, 185),     // button 1, X: F15, Tab
+    (BTN_JOYSTICK + 1, 192), // button 2, A: F22, Start: the launcher
+    (BTN_JOYSTICK + 2, 191), // button 3, B: F21, Select: the window switcher
+    (BTN_JOYSTICK + 3, 183), // button 4, Y: F13, L: close the window
     (BTN_JOYSTICK + 9, 192), // button 10, Start: F22
 ];
 
@@ -272,13 +276,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_held_button_is_a_held_key() {
+    fn a_b_and_y_are_the_launcher_the_switcher_and_close() {
         let mut buttons = Buttons::default();
-        assert_eq!(buttons.joystick(EV_KEY, BTN_JOYSTICK + 1, 1), [(188, true)]);
-        assert_eq!(
-            buttons.joystick(EV_KEY, BTN_JOYSTICK + 1, 0),
-            [(188, false)]
-        );
+        let a = BTN_JOYSTICK + 1;
+        assert_eq!(buttons.joystick(EV_KEY, a, 1), [(192, true)], "A is Start");
+        assert_eq!(buttons.joystick(EV_KEY, a, 0), [(192, false)]);
+        let b = BTN_JOYSTICK + 2;
+        assert_eq!(buttons.joystick(EV_KEY, b, 1), [(F21, true)], "B is Select");
+        let y = BTN_JOYSTICK + 3;
+        assert_eq!(buttons.joystick(EV_KEY, y, 1), [(183, true)], "Y is L");
         assert_eq!(buttons.joystick(EV_KEY, BTN_JOYSTICK + 9, 1), [(192, true)]);
     }
 

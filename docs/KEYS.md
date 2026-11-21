@@ -33,22 +33,31 @@ mouse, and the D-pad stays the arrow keys, its only ones.
 | control | what it does |
 |---|---|
 | D-pad | arrows |
-| A B X Y | Enter, Escape, Tab, F10, as in Buttons mode above |
+| A | the launcher: what Start does |
+| B | the window switcher: what Select does |
+| X | Tab; in the menu, search |
+| Y | close the window: what L does on the PocketTerm35 |
 | trackball | moves the cursor |
 | L, R (the trackball's keys) | left click, right click (options) |
 | Select + trackball | scroll |
 | Select | window switcher, when let go without scrolling |
-| Start | menu |
+| Start | the launcher |
+
+A, B and Y act the same in the menu as Start, Select and L do: A closes the
+menu over an app, or goes to the top screen on the desktop. B opens the
+switcher, and on the switcher closes it. Y on the switcher closes the card
+under the cursor. To open and go back in the menu, use the trackball, or
+Enter and Backspace.
 
 The menu's legend shows the trackball: L Click, R Options, Select +
-Trackball Scroll. A B X Y still open, go back, search and go home in it.
-Close a window with the bar's close button or Super + q. Super is Fn + Alt.
+Trackball Scroll. Super is Fn + Alt.
 
 The keyboard needs no new firmware. It sends A B X Y, Select and Start as
-joystick buttons, and `pt35d` presses the keys the PocketTerm35's patched
-firmware sends for them. It keeps the joystick to itself, so a game sees
-these keys and no gamepad. Switch 2 on the back of the keyboard must be off:
-on, A B X Y type `j k u i`.
+joystick buttons, and `pt35d` presses keys the PocketTerm35's patched
+firmware sends: F22 (Start) for A, F21 (Select) for B, F15 for X and F13 (L)
+for Y. It keeps the joystick to itself, so a game sees these keys and no
+gamepad. Switch 2 on the back of the keyboard must be off: on, A B X Y type
+`j k u i`.
 
 Fn + Select is Print Screen, a screenshot. Fn + `,` and Fn + `.` set the
 brightness.
