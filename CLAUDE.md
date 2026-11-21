@@ -5,8 +5,8 @@ Desktop environment for two handhelds, one codebase:
 - Waveshare PocketTerm35: Pi 4B/5, 640x480 HDMI panel, 67-key thumb keyboard,
   D-pad, A/B/X/Y, L/R, Start/Select, Goodix GT911 touch.
 - ClockworkPi uConsole: CM4/CM5 on ak-rex's Debian 13 image, 1280x720 DSI
-  panel, keyboard with D-pad, A/B/X/Y, Start/Select and a trackball. No L/R,
-  no touch.
+  panel, keyboard with D-pad, A/B/X/Y, Start/Select and a trackball whose L
+  and R are its left and right mouse buttons. No gamepad L/R, no touch.
 
 `pt35-device` tells them apart by the uConsole's `cw,cwu50` panel in the device
 tree. `pt35-session` exports the answer as `PT35_DEVICE`, and
@@ -87,11 +87,13 @@ unit. See `docs/hardware-facts.md`.
   Y F13 (L, close), X F15. `Status::keypad` is `UConsole`. Select goes out on
   release, and not when the trackball scrolled: holding Select makes it a
   wheel.
-- No L or R buttons, and one input mode (`Keypad::one_mode`): the trackball
-  and its two keys are the mouse, and the D-pad stays the arrow keys. `pt35d`
-  refuses a mode change, the bar hides the mode readout, Quick settings drops
-  Input, and the menu's legend is the trackball's (L Click, R Options,
-  Select + Trackball Scroll). Super is Fn+Alt.
+- L and R are the trackball's left and right mouse buttons, not gamepad
+  buttons: sway sees plain clicks and no binding can use them. One input
+  mode (`Keypad::one_mode`): the trackball, L and R are the mouse, and the
+  D-pad stays the arrow keys. `pt35d` refuses a mode change, the bar hides
+  the mode readout, Quick settings drops Input, and the menu's legend is the
+  trackball's (L Click, R Options, Select + Trackball Scroll). Super is
+  Fn+Alt.
 - Backlight: `ocp8178` in `/sys/class/backlight`, nine levels. A step moves at
   least one level. `70-pt35-backlight.rules` lets `video` write it. No serial
   probing: the keyboard's console belongs to the STM32.

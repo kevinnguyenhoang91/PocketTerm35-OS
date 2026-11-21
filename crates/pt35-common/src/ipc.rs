@@ -338,7 +338,8 @@ pub enum Keypad {
     /// because that firmware answers the backlight command.
     Pt35,
     /// uConsole: `pt35d` replays the joystick buttons as the pt35
-    /// firmware's keys. It has no L or R, and one input mode.
+    /// firmware's keys. Its L and R are mouse buttons, and it has one input
+    /// mode.
     #[serde(rename = "uconsole")]
     UConsole,
 }

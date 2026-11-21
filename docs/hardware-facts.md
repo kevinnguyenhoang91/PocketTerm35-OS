@@ -163,15 +163,16 @@ Keyboard, Mouse, Consumer Control and a joystick, plus a CDC serial port
 | A B X Y | joystick buttons 2 3 1 4: `BTN_THUMB`, `BTN_THUMB2`, `BTN_TRIGGER`, `BTN_TOP` |
 | Select, Start | joystick buttons 9 and 10: `BTN_BASE3`, `BTN_BASE4` (Fn: Print, Pause) |
 | trackball | mouse; a wheel while Select is held |
-| two mouse keys | left and right click |
+| L, R | left and right mouse buttons, on the Mouse device (`BTN_LEFT`, `BTN_RIGHT`) |
 | Fn + `,` `.` | brightness down, up (consumer keys) |
 | Fn + Alt | Super |
 
-There is no L or R. Switch 2 on the back turns the buttons into letters:
-A B X Y type `j k u i`, Select is Space and Start is Enter. The shell needs it
-off. `pt35d`'s `gamepad.rs` grabs the joystick and presses the pt35
-firmware's keys for it on a uinput keyboard. Select goes out on release, and
-not at all when the trackball scrolled meanwhile.
+L and R are the trackball's mouse buttons, not gamepad buttons, so they are
+clicks and nothing can bind them. Switch 2 on the back turns the buttons
+into letters: A B X Y type `j k u i`, Select is Space and Start is Enter.
+The shell needs it off. `pt35d`'s `gamepad.rs` grabs the joystick and
+presses pt35 firmware keys for it on a uinput keyboard. Select goes out on
+release, and not at all when the trackball scrolled meanwhile.
 
 ### Backlight
 `ocp8178-backlight`, in `/sys/class/backlight`. `max_brightness` is 9. A

@@ -6,9 +6,10 @@
 //! bindings serve both. The joystick is grabbed: the shell owns the buttons,
 //! and a game would get both otherwise.
 //!
-//! The uConsole has no L or R, and its trackball is the mouse, so three face
-//! buttons take the jobs that need a button of their own: A is Start (the
-//! launcher), B is Select (the window switcher), Y is L (close the window).
+//! The uConsole's L and R are the trackball's mouse buttons, not gamepad
+//! buttons, so three face buttons take the jobs that need a button of their
+//! own: A is Start (the launcher), B is Select (the window switcher), Y is
+//! the PocketTerm35's L (close the window).
 //!
 //! Select goes out when it is let go, and only if the trackball did not
 //! scroll meanwhile: the keyboard turns the trackball into a wheel while
