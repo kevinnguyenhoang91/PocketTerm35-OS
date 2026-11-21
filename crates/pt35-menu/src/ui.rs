@@ -149,6 +149,23 @@ const MOUSE_HINTS: &[Hint] = &[
     },
 ];
 
+/// The uConsole has one mode: its trackball is the mouse, with the two keys
+/// beside it, and A B X Y stay keys. So the legend is the trackball's.
+const TRACKBALL_HINTS: &[Hint] = &[
+    Hint {
+        button: "L",
+        action: "Click",
+    },
+    Hint {
+        button: "R",
+        action: "Options",
+    },
+    Hint {
+        button: "Select + Trackball",
+        action: "Scroll",
+    },
+];
+
 const QUICK_HINTS: &[Hint] = &[
     Hint {
         button: "←→",
@@ -651,6 +668,11 @@ impl Menu {
         let key = match button {
             // In Mouse mode B is the right button, and its pill says Options.
             "B" if self.mouse_mode() => return self.options_here(),
+            // The uConsole's trackball keys: L opens what is selected, R its
+            // options, the scroll legend scrolls.
+            "L" if self.one_mode() => Key::new(pt35_ui::keys::sym::BUTTON_A),
+            "R" if self.one_mode() => return self.options_here(),
+            "Select + Trackball" => Key::new(pt35_ui::keys::sym::DOWN),
             "←→" => Key::new(pt35_ui::keys::sym::RIGHT),
             "Bksp" => Key::new(pt35_ui::keys::sym::BACKSPACE),
             "↑↓" => Key::new(pt35_ui::keys::sym::DOWN),
@@ -679,8 +701,9 @@ impl Menu {
             .is_some_and(|s| s.input_mode == pt35_common::ipc::InputMode::Mouse)
     }
 
-    fn keypad(&self) -> pt35_common::ipc::Keypad {
-        self.status.as_ref().map(|s| s.keypad).unwrap_or_default()
+    /// The uConsole: no Mouse mode, a trackball legend. See `Keypad::one_mode`.
+    fn one_mode(&self) -> bool {
+        self.status.as_ref().is_some_and(|s| s.keypad.one_mode())
     }
 
     /// The right-click menu of the row under the cursor, as if clicked there.
@@ -1914,6 +1937,17 @@ impl Menu {
             canvas.rect(0, y, canvas.width, row_h as u32, theme.color.background_alt);
             canvas.rect(0, y, 3, row_h as u32, theme.color.accent);
         }
+        // Sliders and bars start past the widest label beside one, so they
+        // line up and none runs over its name, at any font size.
+        let label_x = pad + icon_size as i32 + 12;
+        let track_x = label_x
+            + rows
+                .iter()
+                .filter(|row| row.glyph.starts_with("slide") || row.glyph.starts_with("bar"))
+                .map(|row| self.font.measure(&row.label, theme.font.size_menu) as i32)
+                .max()
+                .unwrap_or(0)
+            + pad;
 
         for (index, row) in rows.iter().enumerate() {
             let y = top + index as i32 * row_h;
@@ -1933,7 +1967,6 @@ impl Menu {
                     },
                 );
             }
-            let label_x = pad + icon_size as i32 + 12;
             self.font.draw(
                 canvas,
                 &row.label,
@@ -1980,7 +2013,7 @@ impl Menu {
                         .and_then(|v| v.parse().ok())
                         .unwrap_or(0);
                     let note_w = self.mono.measure(&row.note, theme.font.size_hint) as i32;
-                    let bar_x = label_x + 130;
+                    let bar_x = track_x;
                     let bar_w = right - note_w - 12 - bar_x;
                     canvas.rect(bar_x, centre - 5, bar_w as u32, 10, theme.color.border);
                     let filled = bar_w * value.clamp(0, 100) / 100;
@@ -2007,7 +2040,6 @@ impl Menu {
                         .and_then(|v| v.parse().ok())
                         .unwrap_or(0);
                     let note_w = self.mono.measure(&row.note, theme.font.size_hint) as i32;
-                    let track_x = label_x + 130;
                     let track_w = right - note_w - 12 - track_x;
                     canvas.rect(track_x, centre - 2, track_w as u32, 4, theme.color.border);
                     let filled = track_w * value.clamp(0, 100) / 100;
@@ -2261,6 +2293,7 @@ impl Menu {
         let mouse = self.mouse_mode();
         let hints: &[Hint] = match (filtering, on_switcher, on_quick_setting) {
             (true, _, _) => FILTER_HINTS,
+            _ if self.one_mode() => TRACKBALL_HINTS,
             // In Mouse mode the face buttons are the mouse, here as anywhere.
             _ if mouse => MOUSE_HINTS,
             (false, true, _) => WINDOW_HINTS,
@@ -2296,8 +2329,6 @@ impl Menu {
             // on a dashboard.
             .filter(|hint| !((readonly || empty) && !filtering && hint.button == "A"))
             .filter(|hint| !(readonly && hint.button == "X"))
-            // The uConsole has no R to name.
-            .filter(|hint| hint.button != "R" || self.keypad().has_shoulders())
             .map(|hint| {
                 // At the top screen back means out. On the screen the menu was
                 // opened on it is still "Back": back to your app.
@@ -2313,8 +2344,9 @@ impl Menu {
             .collect();
         let mut hints = hints;
         // Y on a launcher row pins it: the one thing Y is free for at the top.
-        // In Mouse mode Y is the wheel: a right click pins, from its menu.
-        if !mouse && self.pin_target().is_some() {
+        // In Mouse mode Y is the wheel, and on the uConsole the legend is the
+        // trackball's: a right click pins, from its menu.
+        if !mouse && !self.one_mode() && self.pin_target().is_some() {
             let pinned = self
                 .model
                 .visible_rows()
@@ -2335,10 +2367,12 @@ impl Menu {
         // Each chip takes the width it needs and the slack is shared out
         // between them: even slots cut the last word off when the legend is
         // long, and "Clos..." is worse than a tighter gap.
+        // The pill is as tall as its text needs: 24px at the PocketTerm35's 16px.
+        let pill_h = (size * 1.5) as i32;
         let widths: Vec<i32> = hints
             .iter()
             .map(|hint| {
-                let pill = (self.bold.measure(hint.button, size) as i32 + 14).max(24);
+                let pill = (self.bold.measure(hint.button, size) as i32 + 14).max(pill_h);
                 pill + 6 + self.font.measure(hint.action, size) as i32
             })
             .collect();
@@ -2353,8 +2387,15 @@ impl Menu {
             let start = x;
             let (pill, ink) = self.button_colors(hint.button);
             let label_w = self.bold.measure(hint.button, size) as i32;
-            let pill_w = (label_w + 14).max(24);
-            canvas.rounded_rect(x, centre - 12, pill_w as u32, 24, 12, pill);
+            let pill_w = (label_w + 14).max(pill_h);
+            canvas.rounded_rect(
+                x,
+                centre - pill_h / 2,
+                pill_w as u32,
+                pill_h as u32,
+                pill_h as u32 / 2,
+                pill,
+            );
             self.bold.draw(
                 canvas,
                 hint.button,

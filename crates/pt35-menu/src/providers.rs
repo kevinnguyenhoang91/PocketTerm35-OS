@@ -435,6 +435,7 @@ pub fn quick() -> Items {
         .unwrap_or(false);
     let touch = status.as_ref().map(|s| s.touch_enabled).unwrap_or(true);
     let touchscreen = status.as_ref().is_some_and(|s| s.touchscreen);
+    let one_mode = status.as_ref().is_some_and(|s| s.keypad.one_mode());
     let brightness = status.as_ref().and_then(|s| s.brightness_percent);
 
     // The radio, as the toggle reads it. A signal says only that it is joined:
@@ -509,8 +510,10 @@ pub fn quick() -> Items {
             ..Item::default()
         },
     ]);
-    // A switch for a touchscreen the device does not have is noise.
+    // A switch for a touchscreen the device does not have is noise, and so is
+    // a mode switch on the uConsole, which has one mode.
     rows.retain(|row| touchscreen || row.payload != "ctl:touch toggle");
+    rows.retain(|row| !one_mode || row.payload != "ctl:mode toggle");
     rows
 }
 

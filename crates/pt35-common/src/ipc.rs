@@ -338,7 +338,7 @@ pub enum Keypad {
     /// because that firmware answers the backlight command.
     Pt35,
     /// uConsole: `pt35d` replays the joystick buttons as the pt35
-    /// firmware's keys. It has no L or R.
+    /// firmware's keys. It has no L or R, and one input mode.
     #[serde(rename = "uconsole")]
     UConsole,
 }
@@ -348,9 +348,10 @@ impl Keypad {
         self == Keypad::Stock
     }
 
-    /// L and R exist. The uConsole has none.
-    pub fn has_shoulders(self) -> bool {
-        self != Keypad::UConsole
+    /// One input mode, no Mouse mode: the uConsole's trackball is the mouse,
+    /// and its D-pad stays the arrow keys.
+    pub fn one_mode(self) -> bool {
+        self == Keypad::UConsole
     }
 }
 

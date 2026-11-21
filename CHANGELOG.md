@@ -7,8 +7,9 @@
 - ClockworkPi uConsole support, CM4 and CM5, on ak-rex's Debian 13 Trixie
   image. The shell finds the uConsole by its panel, sizes itself for the
   1280x720 screen, and shows the battery. A B X Y, Select and Start work
-  with the keyboard's stock firmware. Hold Select and roll the trackball to
-  scroll. See docs/KEYS.md.
+  with the keyboard's stock firmware. There is one input mode: the
+  trackball is the mouse and the D-pad stays the arrow keys. Hold Select and
+  roll the trackball to scroll. See docs/KEYS.md.
 - `install.sh --branch NAME` builds a branch of the repo, to try a change
   before it is released. `PT35_REPO` picks a fork.
 
@@ -24,6 +25,8 @@
 ### Fixed
 
 - A brightness step on a backlight with few levels always moves it.
+- Quick settings' sliders start past their labels instead of over them, at
+  any font size. The legend's pills grow with the hint font.
 
 ## 0.4.6 (2026-11-14)
 

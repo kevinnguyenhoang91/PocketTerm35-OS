@@ -27,15 +27,22 @@ motion while a button is down. A real mouse or a finger can drag.
 ## uConsole
 
 The uConsole has the D-pad, A B X Y, Select and Start, and a trackball with
-two mouse keys. Each does what the table above says. It has no L or R:
+two mouse keys, L and R. It has one mode, no Mouse mode: the trackball is the
+mouse, and the D-pad stays the arrow keys, its only ones.
 
-| PocketTerm35 | on the uConsole |
+| control | what it does |
 |---|---|
-| L: close the window | the bar's close button, or Super + q |
-| R: switch mode | the bar's mode icon, or Super + m |
+| D-pad | arrows |
+| A B X Y | Enter, Escape, Tab, F10, as in Buttons mode above |
+| trackball | moves the cursor |
+| L, R (the trackball's keys) | left click, right click (options) |
+| Select + trackball | scroll |
+| Select | window switcher, when let go without scrolling |
+| Start | menu |
 
-Super is Fn + Alt. The trackball is a mouse in either mode. Hold Select and
-roll it to scroll: Select then does not open the switcher.
+The menu's legend shows the trackball: L Click, R Options, Select +
+Trackball Scroll. A B X Y still open, go back, search and go home in it.
+Close a window with the bar's close button or Super + q. Super is Fn + Alt.
 
 The keyboard needs no new firmware. It sends A B X Y, Select and Start as
 joystick buttons, and `pt35d` presses the keys the PocketTerm35's patched

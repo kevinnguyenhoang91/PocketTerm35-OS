@@ -85,8 +85,12 @@ unit. See `docs/hardware-facts.md`.
   and presses the pt35 firmware's F-keys on a uinput keyboard, so every
   binding is shared. `Status::keypad` is `UConsole`. Select goes out on release,
   and not when the trackball scrolled: holding Select makes it a wheel.
-- No L or R. Close and mode are the bar's buttons, Super+q and Super+m. A
-  hint that names R is dropped (`Keypad::has_shoulders`). Super is Fn+Alt.
+- No L or R buttons, and one input mode (`Keypad::one_mode`): the trackball
+  and its two keys are the mouse, the D-pad stays the arrow keys, and A B X Y
+  keep Buttons mode's bindings. `pt35d` refuses a mode change, the bar hides
+  the mode readout, Quick settings drops Input, and the menu's legend is the
+  trackball's (L Click, R Options, Select + Trackball Scroll). Close is the
+  bar's button or Super+q. Super is Fn+Alt.
 - Backlight: `ocp8178` in `/sys/class/backlight`, nine levels. A step moves at
   least one level. `70-pt35-backlight.rules` lets `video` write it. No serial
   probing: the keyboard's console belongs to the STM32.

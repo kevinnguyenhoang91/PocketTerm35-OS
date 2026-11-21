@@ -819,6 +819,11 @@ impl Session {
             }
 
             Request::Mode { mode } => {
+                // The uConsole stays in Buttons mode's bindings: the trackball
+                // is the mouse, and the D-pad its only arrow keys.
+                if self.keypad().one_mode() {
+                    bail!("the uConsole has one mode: the trackball is the mouse");
+                }
                 let target = match mode {
                     ModeRequest::Buttons => InputMode::Buttons,
                     ModeRequest::Mouse => InputMode::Mouse,
