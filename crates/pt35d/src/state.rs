@@ -176,7 +176,23 @@ impl Session {
         apply_animations(&session.theme);
         apply_cursor(&session.theme.pointer);
         session.kill_stray_menu();
+        session.clear_stale_binds();
         session
+    }
+
+    /// A pt35d started again in a running session (after a crash, or an update
+    /// without a reboot) knows nothing of what the last one bound. Take every
+    /// mode binding off first: a Mouse mode the last one left would keep the
+    /// D-pad moving the cursor, on a uConsole that has no way back.
+    fn clear_stale_binds(&mut self) {
+        let all: Vec<String> = crate::modes::all_binds(&self.theme.pointer)
+            .iter()
+            .map(|bind| bind.unbind())
+            .collect();
+        // Most are not bound, and sway says so. They are gone either way.
+        if let Err(e) = self.sway_command(&all.join(", ")) {
+            log::debug!("clearing old bindings: {e}");
+        }
     }
 
     /// Save a small picture of the window in front, in the background.

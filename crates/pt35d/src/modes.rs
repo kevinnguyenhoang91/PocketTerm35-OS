@@ -134,6 +134,17 @@ pub fn menu_binds(mode: InputMode, pointer: &Pointer) -> Vec<Bind> {
     }
 }
 
+/// Every binding either mode makes, to clear what an earlier pt35d left.
+pub fn all_binds(pointer: &Pointer) -> Vec<Bind> {
+    let mut out = binds(InputMode::Buttons, pointer);
+    for bind in binds(InputMode::Mouse, pointer) {
+        if !out.contains(&bind) {
+            out.push(bind);
+        }
+    }
+    out
+}
+
 /// Everything else a mode needs from sway, after the bindings.
 pub fn settings(mode: InputMode, pointer: &Pointer, buttons: &Buttons) -> Vec<String> {
     match mode {
@@ -232,5 +243,19 @@ mod tests {
         assert!(mouse
             .iter()
             .any(|b| b.key == Y && b.action == "exec pt35ctl wheel down"));
+    }
+
+    #[test]
+    fn clearing_old_bindings_reaches_every_mode_and_the_menu() {
+        let pointer = Pointer::default();
+        let all = all_binds(&pointer);
+        for mode in [InputMode::Buttons, InputMode::Mouse] {
+            for bind in binds(mode, &pointer)
+                .into_iter()
+                .chain(menu_binds(mode, &pointer))
+            {
+                assert!(all.contains(&bind), "{} is left behind", bind.bind());
+            }
+        }
     }
 }
