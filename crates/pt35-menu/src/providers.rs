@@ -434,6 +434,7 @@ pub fn quick() -> Items {
         .map(|s| s.input_mode == pt35_common::ipc::InputMode::Mouse)
         .unwrap_or(false);
     let touch = status.as_ref().map(|s| s.touch_enabled).unwrap_or(true);
+    let touchscreen = status.as_ref().is_some_and(|s| s.touchscreen);
     let brightness = status.as_ref().and_then(|s| s.brightness_percent);
 
     // The radio, as the toggle reads it. A signal says only that it is joined:
@@ -508,6 +509,8 @@ pub fn quick() -> Items {
             ..Item::default()
         },
     ]);
+    // A switch for a touchscreen the device does not have is noise.
+    rows.retain(|row| touchscreen || row.payload != "ctl:touch toggle");
     rows
 }
 
@@ -1156,24 +1159,21 @@ pub fn os_name(release: &str) -> Option<String> {
     Some(value.replace(" GNU/Linux", ""))
 }
 
-/// The output and its mode, from sway rather than assumed.
+/// The output and its size, from sway rather than assumed. The rotated size:
+/// the uConsole's panel is 720x1280 portrait and shows as 1280x720.
 fn display() -> String {
-    let Some(out) = run("swaymsg", &["-t", "get_outputs", "-r"]) else {
-        return "640x480".into();
-    };
-    let outputs: serde_json::Value = serde_json::from_str(&out).unwrap_or_default();
-    outputs
-        .as_array()
-        .and_then(|list| list.iter().find(|o| o["active"].as_bool() == Some(true)))
-        .map(|o| {
-            format!(
-                "{} {}x{}",
-                o["name"].as_str().unwrap_or("?"),
-                o["current_mode"]["width"],
-                o["current_mode"]["height"]
-            )
-        })
-        .unwrap_or_else(|| "640x480".into())
+    let outputs: serde_json::Value = run("swaymsg", &["-t", "get_outputs", "-r"])
+        .and_then(|out| serde_json::from_str(&out).ok())
+        .unwrap_or_default();
+    let name = outputs.as_array().and_then(|list| {
+        list.iter()
+            .find(|o| o["active"].as_bool() == Some(true))
+            .and_then(|o| o["name"].as_str())
+    });
+    match (name, pt35_common::sway::screen_size(&outputs)) {
+        (Some(name), Some((width, height))) => format!("{name} {width}x{height}"),
+        _ => "unknown".into(),
+    }
 }
 
 // ------------------------------------------------------------- appearance

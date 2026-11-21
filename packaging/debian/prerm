@@ -23,7 +23,9 @@ if [ -d /run/systemd/system ]; then
   systemctl disable --now pt35-ai.service >/dev/null 2>&1 || true
   systemctl daemon-reload >/dev/null 2>&1 || true
   systemctl disable greetd.service >/dev/null 2>&1 || true
-  systemctl enable lightdm.service >/dev/null 2>&1 || true
+  dm=$(cat /var/lib/pt35-desktop/display-manager 2>/dev/null || echo lightdm)
+  systemctl enable "$dm.service" >/dev/null 2>&1 || true
+  rm -rf /var/lib/pt35-desktop
 fi
 [ -f /etc/greetd/config.toml.pt35.bak ] && mv /etc/greetd/config.toml.pt35.bak /etc/greetd/config.toml
 

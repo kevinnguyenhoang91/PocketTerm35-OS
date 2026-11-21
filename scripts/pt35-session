@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pt35-session: launched by greetd; sets the environment a 640x480 keyboard-only
+# pt35-session: launched by greetd; sets the environment a small keyboard-driven
 # Wayland session needs, then execs sway.
 set -u
 
@@ -8,10 +8,15 @@ export XDG_SESSION_DESKTOP=pt35
 export XDG_CURRENT_DESKTOP=sway
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
+# Which handheld: `pocketterm35` or `uconsole`. sway includes the matching
+# sway/$PT35_DEVICE.conf, and the shell merges pt35/uconsole/*.toml over its
+# defaults on a uConsole.
+export PT35_DEVICE="${PT35_DEVICE:-$(/usr/lib/pt35/pt35-device)}"
+
 # --- toolkit scaling -------------------------------------------------------
-# The panel is 640x480 and stays at scale 1. An app that needs to shrink does it
-# itself: pt35d passes its profile's scale as GDK_DPI_SCALE / QT_SCALE_FACTOR.
-# These are the session-wide defaults it overrides.
+# The panel stays at scale 1. An app that needs to shrink does it itself:
+# pt35d passes its profile's scale as GDK_DPI_SCALE / QT_SCALE_FACTOR. These
+# are the session-wide defaults it overrides.
 export QT_QPA_PLATFORM="wayland;xcb"
 export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
 export QT_ENABLE_HIGHDPI_SCALING=0
@@ -36,10 +41,19 @@ export XCURSOR_THEME=Bibata-Modern-Classic
 export XCURSOR_SIZE=20
 export PT35_SHARE=/usr/share/pt35-desktop
 
+# The uConsole's panel is 1.3 times as dense as the PocketTerm35's: apps at
+# 1.25 read at about the same size.
+if [ "$PT35_DEVICE" = uconsole ]; then
+  export GDK_DPI_SCALE=1.25
+  export QT_SCALE_FACTOR=1.25
+  export XCURSOR_SIZE=24
+fi
+
 # --- GPU -------------------------------------------------------------------
-# A Pi 4 or 5 splits display and GPU: vc4 drives the panel and has no render
-# node, v3d renders. wlroots picks vc4 and tells every client to render there,
-# so GL apps and Xwayland fall back to llvmpipe (#9). Name the v3d node.
+# A Pi 4 or 5, or their compute modules, splits display and GPU: vc4 (or RP1,
+# for a CM5's DSI panel) drives the panel and has no render node, v3d renders.
+# wlroots picks the display device and tells every client to render there, so
+# GL apps and Xwayland fall back to llvmpipe (#9). Name the v3d node.
 if [ -z "${WLR_RENDER_DRM_DEVICE:-}" ]; then
   for node in /sys/class/drm/renderD*; do
     driver=$(readlink -f "$node/device/driver" 2>/dev/null) || continue

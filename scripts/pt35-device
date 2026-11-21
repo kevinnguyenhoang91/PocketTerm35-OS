@@ -1,0 +1,16 @@
+#!/bin/sh
+# pt35-device: which handheld this is. Prints `uconsole` or `pocketterm35`.
+#
+# pt35-session exports the answer as PT35_DEVICE for the whole session, and
+# the installer reads it to leave a uConsole's boot config alone.
+#
+# The uConsole is known by its panel: ClockworkPi's uConsole overlays put a
+# `cw,cwu50` DSI panel in the device tree, on CM4 and CM5 alike. The
+# PocketTerm35's panel is plain HDMI and has no node.
+set -u
+
+if grep -rqsxz --include=compatible 'cw,cwu50' /proc/device-tree/ 2>/dev/null; then
+  echo uconsole
+else
+  echo pocketterm35
+fi

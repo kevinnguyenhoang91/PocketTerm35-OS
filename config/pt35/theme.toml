@@ -1,4 +1,5 @@
-# pt35-desktop theme. Sizes are physical pixels on the 640x480 panel.
+# pt35-desktop theme. Sizes are physical pixels on the PocketTerm35's 640x480
+# panel. On a uConsole, uconsole/theme.toml beside this file is merged over it.
 # User override: ~/.config/pt35/theme.toml, merged over this file key by key.
 # Settings > Appearance writes ~/.config/pt35/appearance.toml, which sits
 # between the two: a hand edit in theme.toml still wins over a pick.
@@ -71,6 +72,7 @@ columns       = 3
 tile_height   = 86
 gap           = 10
 scrollbar_width = 8      # also a target: click the track, drag the thumb
+side_width    = 148      # the launcher's right-hand column: Windows, Settings, Power
 
 # GTK and Qt apps. dark | light | keep (leave the desktop settings alone).
 # Applied through gsettings at login and on reload; Qt follows GTK.
@@ -85,6 +87,7 @@ gtk_light     = "Adwaita"
 theme         = "Papirus-Dark"
 size_bar      = 18
 size_tile     = 32
+size_row      = 24
 
 # Mouse mode. 16px at 40 repeats a second crosses the 640px panel in a second,
 # and still lands on a 24px close button.

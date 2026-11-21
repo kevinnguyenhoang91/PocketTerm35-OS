@@ -27,6 +27,31 @@ fn shipped_theme_parses() {
     assert!(theme.menu.row_height * theme.menu.rows_visible + theme.bar.height <= 480);
 }
 
+/// The uConsole's layer over the defaults, as `load_config` merges it.
+fn uconsole<T: serde::de::DeserializeOwned>(name: &str) -> T {
+    let mut merged: toml::Value = load(name);
+    pt35_common::merge_toml(&mut merged, load(&format!("uconsole/{name}")));
+    merged
+        .try_into()
+        .unwrap_or_else(|e| panic!("uconsole/{name} over {name}: {e}"))
+}
+
+#[test]
+fn the_uconsole_theme_fits_its_720px_screen() {
+    let theme: Theme = uconsole("theme.toml");
+    let menu = &theme.menu;
+    let body = 720 - theme.bar.height - menu.header_height - menu.hint_height;
+    // pt35-menu clamps rows_visible to what fits; a ceiling it can never
+    // reach is a number that lies.
+    assert!(menu.rows_visible * menu.row_height + 12 <= body);
+}
+
+#[test]
+fn the_uconsole_apps_validate() {
+    let apps: AppTable = uconsole("apps.toml");
+    apps.validate().expect("uconsole/apps.toml over apps.toml");
+}
+
 #[test]
 fn shipped_menu_validates() {
     let tree: MenuTree = load("menu.toml");

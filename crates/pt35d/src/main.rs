@@ -12,6 +12,7 @@ use std::time::Duration;
 mod audio;
 mod backlight;
 mod events;
+mod gamepad;
 mod hardware;
 mod hooks;
 mod modes;
@@ -68,6 +69,10 @@ fn main() -> Result<()> {
         std::thread::Builder::new()
             .name("sway-events".into())
             .spawn(move || events::run(session, subscribers))?;
+    }
+
+    if pt35_common::device::Device::current() == pt35_common::device::Device::UConsole {
+        gamepad::spawn();
     }
 
     server::Server::new(listener, session, subscribers).serve();

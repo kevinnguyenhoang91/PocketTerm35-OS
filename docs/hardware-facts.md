@@ -1,11 +1,16 @@
-# PocketTerm35 hardware facts
+# Hardware facts
 
-What the shell assumes about this device, checked on the board. To check a
-unit of your own, run the probe and compare:
+What the shell assumes about each device. To check a unit of your own, run
+the probe and compare:
 
 ```sh
 sudo /usr/share/pt35-desktop/pt35-probe.sh > /tmp/probe.md 2>&1
 ```
+
+`/usr/lib/pt35/pt35-device` says which device this is. The [uConsole](#clockworkpi-uconsole)
+is below the PocketTerm35.
+
+# PocketTerm35
 
 Captured on a Pi 5 board, 2026-09-22.
 
@@ -117,3 +122,78 @@ battery.
 ### Still open
 - Where audio comes out: HDMI through the panel board, or a separate DAC.
   Volume works through PipeWire either way.
+
+# ClockworkPi uConsole
+
+Read from ak-rex's "ClockworkPi Debian 13 Trixie lite" image (akrex kernel
+7.1.4, built 2026-07-30) and from ClockworkPi's keyboard firmware source
+(`clockworkpi/uConsole`, `Code/uconsole_keyboard`). Not yet checked on a unit.
+
+### Software base
+The image is Raspberry Pi OS Trixie Lite (`pi-gen`, stage2) with ak-rex's
+kernel and apt repo. `archive.raspberrypi.com` is in its sources, so sway is
+the `+rpt` build, as on the PocketTerm35. `/etc/os-release` says
+`VERSION_CODENAME=trixie`. The board model reads "Raspberry Pi Compute Module
+4" or "5". The CM5 boots `kernel8.img` (4K pages).
+
+### How the shell knows it
+`config.txt` loads `clockworkpi-uconsole-cm4` (or `-cm4s`, `-cm5`). Each puts a
+DSI panel with `compatible = "cw,cwu50"` in the device tree. `pt35-device`
+looks for that string under `/proc/device-tree`. The DevTerm's panel is
+`cw,cwd686`, which is not supported.
+
+### Display: 720x1280 DSI panel, turned
+The panel is portrait, `cw,cwu50`, with `rotation = <90>` in the overlay. Its
+driver reads the rotation into the DRM "panel orientation" property, and sway
+1.10 applies that when the config gives no `transform`. So the desktop is
+1280x720 with no transform set. The console has `fbcon=rotate:1` for the same
+reason. The output is `DSI-1` on a CM4 and `DSI-2` on a CM5, where the panel
+hangs off RP1. The panel is 5", about 11.6 px/mm, so `pt35/uconsole/theme.toml`
+makes every size 1.3 times the PocketTerm35's.
+
+### Keyboard: STM32, keys plus a joystick
+USB `1eaf:0024`, "ClockworkPI uConsole": USBComposite's default ids. One HID
+interface with four application collections, which Linux splits into
+Keyboard, Mouse, Consumer Control and a joystick, plus a CDC serial port
+(`/dev/ttyACM0`) that the firmware never reads.
+
+| control | sends |
+|---|---|
+| D-pad | arrow keys (Fn: Page Up, Page Down, Home, End) |
+| A B X Y | joystick buttons 2 3 1 4: `BTN_THUMB`, `BTN_THUMB2`, `BTN_TRIGGER`, `BTN_TOP` |
+| Select, Start | joystick buttons 9 and 10: `BTN_BASE3`, `BTN_BASE4` (Fn: Print, Pause) |
+| trackball | mouse; a wheel while Select is held |
+| two mouse keys | left and right click |
+| Fn + `,` `.` | brightness down, up (consumer keys) |
+| Fn + Alt | Super |
+
+There is no L or R. Switch 2 on the back turns the buttons into letters:
+A B X Y type `j k u i`, Select is Space and Start is Enter. The shell needs it
+off. `pt35d`'s `gamepad.rs` grabs the joystick and presses the pt35
+firmware's keys for it on a uinput keyboard. Select goes out on release, and
+not at all when the trackball scrolled meanwhile.
+
+### Backlight
+`ocp8178-backlight`, in `/sys/class/backlight`. `max_brightness` is 9. A
+level is a table entry, so `pt35d` moves at least one level per step.
+`70-pt35-backlight.rules` gives `video` write access.
+
+### Battery
+An AXP228 PMIC on I2C: `/sys/class/power_supply/axp20x-battery`, with
+`capacity` and `status`. The bar shows it. The image's
+`99-uconsole-charging.rules` sets the charge current.
+
+### Audio
+PWM audio on GPIO 12 and 13 (`audremap`). ak-rex's
+`clockworkpi-audio-patch.service` switches the speaker off when headphones
+are in. Volume works through PipeWire.
+
+### Touch and network
+No touchscreen: the Touch row in Quick settings is hidden. Wi-Fi is the
+module's own `wlan0`. There is no Ethernet port.
+
+### Still open
+- Whether the cwu50 driver sets the panel orientation property on the CM5. If
+  the screen comes up sideways, add `output DSI-2 transform 270` to
+  `~/.config/sway/config`.
+- Whether rendering on v3d with the panel on RP1 (CM5) costs a copy per frame.

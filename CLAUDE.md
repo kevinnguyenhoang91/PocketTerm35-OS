@@ -1,7 +1,19 @@
 # pt35-desktop
 
-Desktop environment for the Waveshare PocketTerm35: Pi 4B/5, 640x480 HDMI panel,
-67-key thumb keyboard, D-pad, A/B/X/Y, L/R, Start/Select, Goodix GT911 touch.
+Desktop environment for two handhelds, one codebase:
+
+- Waveshare PocketTerm35: Pi 4B/5, 640x480 HDMI panel, 67-key thumb keyboard,
+  D-pad, A/B/X/Y, L/R, Start/Select, Goodix GT911 touch.
+- ClockworkPi uConsole: CM4/CM5 on ak-rex's Debian 13 image, 1280x720 DSI
+  panel, keyboard with D-pad, A/B/X/Y, Start/Select and a trackball. No L/R,
+  no touch.
+
+`pt35-device` tells them apart by the uConsole's `cw,cwu50` panel in the device
+tree. `pt35-session` exports the answer as `PT35_DEVICE`, and
+`pt35_common::device::Device::current()` reads it. Per-device config is a
+layer, never a fork: `config/pt35/uconsole/*.toml` merges over
+`config/pt35/*.toml`, and the sway config includes `sway/$PT35_DEVICE.conf`.
+The PocketTerm35 is the default everywhere.
 
 ## Writing style
 
@@ -16,7 +28,7 @@ Applies to chat replies, commit messages, docs and code comments.
   standard. The code already says what it does.
 - Simple English. No yapping.
 
-## Hardware facts
+## Hardware facts: PocketTerm35
 
 Captured from the board, not guessed. See `docs/hardware-facts.md`.
 
@@ -40,8 +52,8 @@ Captured from the board, not guessed. See `docs/hardware-facts.md`.
   USB console (`/dev/ttyACM0`) and answers `PT35 B=<n>`, with a 5% floor;
   `pt35d`'s `backlight.rs` drives it. Stock firmware never answers, and then
   brightness is Fn `-` / `=` only. That answer is also how the shell knows the
-  pt35 firmware is on (`Status::pt35_firmware`): letters stop being buttons and
-  the launcher searches as you type. Battery has no such path. Never show a
+  pt35 firmware is on (`Status::keypad` is `Pt35`, else `Stock`): letters stop
+  being buttons and the launcher searches as you type. Battery has no such path. Never show a
   gauge or a row that can only read `--`.
 - Nothing reads the keyboard's console between requests, so the firmware
   prints only the `PT35 B=` answer: a full buffer blocks `print` and the scan
@@ -57,6 +69,29 @@ Captured from the board, not guessed. See `docs/hardware-facts.md`.
 - Network: `eth0` (the Pi's RJ45) and `wlan0`, both NetworkManager. A cable
   with link wins: `Status::ethernet` is set, the bar shows the wired icon, and
   the quick panel and Network screen gain an Ethernet row. No cable, no row.
+
+## Hardware facts: uConsole
+
+Read from ak-rex's image and ClockworkPi's keyboard source, not yet from a
+unit. See `docs/hardware-facts.md`.
+
+- Display: `DSI-1` (CM4) or `DSI-2` (CM5), a 720x1280 panel. sway turns it to
+  1280x720 from the DT's panel orientation, so no `transform` is set. 1.3
+  times the PocketTerm35's pixel density: `pt35/uconsole/theme.toml` scales
+  every size by that, and `pt35-session` sets toolkits to 1.25.
+- Keyboard: STM32 at USB `1eaf:0024`. Keys, a mouse (the trackball) and a
+  joystick. The D-pad is arrows. A B X Y, Select and Start are joystick
+  buttons, which sway cannot bind. `pt35d`'s `gamepad.rs` grabs the joystick
+  and presses the pt35 firmware's F-keys on a uinput keyboard, so every
+  binding is shared. `Status::keypad` is `UConsole`. Select goes out on release,
+  and not when the trackball scrolled: holding Select makes it a wheel.
+- No L or R. Close and mode are the bar's buttons, Super+q and Super+m. A
+  hint that names R is dropped (`Keypad::has_shoulders`). Super is Fn+Alt.
+- Backlight: `ocp8178` in `/sys/class/backlight`, nine levels. A step moves at
+  least one level. `70-pt35-backlight.rules` lets `video` write it. No serial
+  probing: the keyboard's console belongs to the STM32.
+- Battery: `axp20x-battery` in `/sys/class/power_supply`. The bar shows it.
+- No touchscreen: `Status::touchscreen` is false and Quick settings hides Touch.
 
 ## Input model
 
@@ -181,7 +216,9 @@ window appears in front.
   No "nothing open" text: with no windows the menu covers the bar.
 - A toast takes the slot area for a couple of seconds. It is the only feedback a
   key binding gets.
-- Bar 34px, menu header 46px, hint bar 46px, list rows 50px, tiles 86px.
+- Bar 34px, menu header 46px, hint bar 46px, list rows 50px, tiles 86px. On
+  the uConsole: 44, 60, 60, 64 and 110. Never 480 or 640 in code: the menu
+  and `pt35d` ask sway for the output's size (`Sway::screen_size`).
 - Corners are 2px. Squared, not rounded.
 - Motion is two things, each about 0.1s: the selection glides, a new screen
   settles. The draw loop runs at 60fps only while one is moving and sleeps
@@ -213,6 +250,8 @@ window appears in front.
   goes nowhere first: it may make no window at all.
 - The output stays at scale 1. A profile's `scale` goes to the app as
   `GDK_DPI_SCALE` / `QT_SCALE_FACTOR`, so the shell never shrinks with it.
+  On the uConsole the session default is 1.25, and `uconsole/apps.toml` puts
+  the apps shrunk for 640x480 back to it.
 
 ## Local AI agent
 

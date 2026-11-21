@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- ClockworkPi uConsole support, CM4 and CM5, on ak-rex's Debian 13 Trixie
+  image. The shell finds the uConsole by its panel, sizes itself for the
+  1280x720 screen, and shows the battery. A B X Y, Select and Start work
+  with the keyboard's stock firmware. Hold Select and roll the trackball to
+  scroll. See docs/KEYS.md.
+- `install.sh --branch NAME` builds a branch of the repo, to try a change
+  before it is released. `PT35_REPO` picks a fork.
+
+### Changed
+
+- CPU profiles are shares of the chip's top speed. A Pi 5 keeps 1.5 and
+  1.8 GHz. A 1.5 GHz Pi 4 or CM4, whose top speed powersave used to be, now
+  slows down too.
+- The Touch switch in Quick settings shows only with a touchscreen.
+- The installer hands over from any display manager, sddm included, and
+  gives the same one back on uninstall.
+
+### Fixed
+
+- A brightness step on a backlight with few levels always moves it.
+
 ## 0.4.6 (2026-11-14)
 
 ### Added

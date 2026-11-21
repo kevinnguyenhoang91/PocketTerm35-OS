@@ -6,6 +6,7 @@
 //! builds and tests on any host.
 
 pub mod apps;
+pub mod device;
 pub mod ipc;
 pub mod menu;
 pub mod paths;
@@ -17,13 +18,19 @@ mod merge;
 
 pub use merge::merge_toml;
 
-/// Load a TOML document from the system defaults, overlaid with the user's copy.
+/// Load a TOML document from the system defaults, overlaid with the device's
+/// shipped layer, then the user's copy.
 ///
-/// Both files are optional: missing files fall back to `T::default()` via serde.
+/// Every file is optional: missing files fall back to `T::default()` via serde.
 pub fn load_config<T: serde::de::DeserializeOwned + Default>(relative: &str) -> T {
     let system = paths::system_config(relative);
+    let device = paths::device_config(relative);
     let user = paths::user_config(relative);
-    load_config_from(system.as_deref(), user.as_deref())
+    logged(load_layers(&[
+        system.as_deref(),
+        device.as_deref(),
+        user.as_deref(),
+    ]))
 }
 
 /// Same as [`load_config`], with explicit paths (used by tests and `--config`).
@@ -34,8 +41,8 @@ pub fn load_config_from<T: serde::de::DeserializeOwned + Default>(
     logged(load_layers(&[system, user]))
 }
 
-/// The theme, in three layers: the shipped defaults, what was picked in
-/// Settings > Appearance, then the user's own `theme.toml`.
+/// The theme, in four layers: the shipped defaults, the device's sizes, what
+/// was picked in Settings > Appearance, then the user's own `theme.toml`.
 ///
 /// The picks live in a file of their own so the menu never rewrites one a
 /// person edits by hand, and a hand edit still beats a pick.
@@ -46,9 +53,15 @@ pub fn load_theme() -> theme::Theme {
 /// The theme and what was wrong with it: one line per layer left out.
 pub fn load_theme_report() -> (theme::Theme, Vec<String>) {
     let system = paths::system_config("pt35/theme.toml");
+    let device = paths::device_config("pt35/theme.toml");
     let picked = paths::appearance_path();
     let user = paths::user_config("pt35/theme.toml");
-    load_layers(&[system.as_deref(), Some(&picked), user.as_deref()])
+    load_layers(&[
+        system.as_deref(),
+        device.as_deref(),
+        Some(&picked),
+        user.as_deref(),
+    ])
 }
 
 fn logged<T>((value, skipped): (T, Vec<String>)) -> T {

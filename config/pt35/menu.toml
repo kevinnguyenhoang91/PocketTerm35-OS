@@ -47,9 +47,9 @@ entries = [
 [menu.cpu]
 title = "CPU profile"
 entries = [
-  { label = "Powersave (battery)",   action = "cpu powersave", stay = true, icon = "power-profile-power-saver" },
-  { label = "Balanced",              action = "cpu balanced", stay = true, icon = "power-profile-balanced" },
-  { label = "Performance (27W PSU)", action = "cpu performance", stay = true, icon = "power-profile-performance" },
+  { label = "Powersave (battery)",     action = "cpu powersave", stay = true, icon = "power-profile-power-saver" },
+  { label = "Balanced",                action = "cpu balanced", stay = true, icon = "power-profile-balanced" },
+  { label = "Performance (plugged in)", action = "cpu performance", stay = true, icon = "power-profile-performance" },
 ]
 
 [menu.power]

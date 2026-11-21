@@ -16,7 +16,7 @@ edition = "2021"
 rust-version = "1.82"
 license = "MIT"
 repository = "https://github.com/therezor/PocketTerm35-OS"
-description = "Keyboard-driven desktop environment for the Waveshare PocketTerm35"
+description = "Keyboard-driven desktop environment for the Waveshare PocketTerm35 and ClockworkPi uConsole"
 
 [workspace.dependencies]
 pt35-common = { path = "crates/pt35-common" }

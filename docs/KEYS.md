@@ -24,6 +24,28 @@ screen in about a second.
 Holding A and pressing the D-pad does not drag: sway holds back the cursor's
 motion while a button is down. A real mouse or a finger can drag.
 
+## uConsole
+
+The uConsole has the D-pad, A B X Y, Select and Start, and a trackball with
+two mouse keys. Each does what the table above says. It has no L or R:
+
+| PocketTerm35 | on the uConsole |
+|---|---|
+| L: close the window | the bar's close button, or Super + q |
+| R: switch mode | the bar's mode icon, or Super + m |
+
+Super is Fn + Alt. The trackball is a mouse in either mode. Hold Select and
+roll it to scroll: Select then does not open the switcher.
+
+The keyboard needs no new firmware. It sends A B X Y, Select and Start as
+joystick buttons, and `pt35d` presses the keys the PocketTerm35's patched
+firmware sends for them. It keeps the joystick to itself, so a game sees
+these keys and no gamepad. Switch 2 on the back of the keyboard must be off:
+on, A B X Y type `j k u i`.
+
+Fn + Select is Print Screen, a screenshot. Fn + `,` and Fn + `.` set the
+brightness.
+
 ## The menu
 
 | control | what it does |
@@ -128,8 +150,8 @@ the prompt. Typing searches the scrollback.
 
 ## Keyboard firmware
 
-The patched firmware in [`firmware/`](../firmware/) gives the buttons keys of
-their own. Flash it with `sudo pt35-kbd flash`.
+PocketTerm35 only. The patched firmware in [`firmware/`](../firmware/) gives
+the buttons keys of their own. Flash it with `sudo pt35-kbd flash`.
 
 | button | patched firmware sends | stock sends |
 |---|---|---|
@@ -150,8 +172,9 @@ On stock firmware a button and its letter are the same key, so:
 ## Brightness and volume
 
 With the patched firmware, brightness is a slider in Quick settings and
-`pt35ctl brightness`. On stock it is Fn with `-` and `=`. Fn + C blanks the
-screen.
+`pt35ctl brightness`. On stock it is Fn with `-` and `=`. On a uConsole it is
+always a slider, and Fn with `,` and `.`. On the PocketTerm35, Fn + C blanks
+the screen.
 
 Fn with W, E and R is the same volume as the bar and the menu: PipeWire's.
 On stock firmware they change the speaker amp's gain instead, which the bar

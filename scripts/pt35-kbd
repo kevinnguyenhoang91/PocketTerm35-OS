@@ -175,6 +175,12 @@ def main():
     parser.add_argument("--port", default=PORT)
     args = parser.parse_args()
 
+    # A uConsole's keyboard is an STM32 with a serial port of its own, and no
+    # CircuitPython to talk to. Its buttons need no new firmware: pt35d reads
+    # them as a joystick.
+    if os.popen("/usr/lib/pt35/pt35-device").read().strip() == "uconsole":
+        raise SystemExit("this is a uConsole: its keyboard needs no flashing")
+
     if args.action in ("flash", "restore"):
         args.name = "code.py"
         args.source = os.path.join(

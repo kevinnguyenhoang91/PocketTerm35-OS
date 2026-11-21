@@ -27,6 +27,7 @@ pub enum MessageType {
     RunCommand = 0,
     GetWorkspaces = 1,
     Subscribe = 2,
+    GetOutputs = 3,
     GetTree = 4,
 }
 
@@ -161,6 +162,14 @@ impl Sway {
             focused.and_then(|w| w["num"].as_i64()).unwrap_or(1),
         ))
     }
+
+    /// The focused output's size in logical pixels: rotated, and divided by
+    /// its scale. The uConsole's panel is 720x1280 and reads 1280x720 here.
+    pub fn screen_size(&mut self) -> Result<(u32, u32)> {
+        let reply = self.request(MessageType::GetOutputs, "")?;
+        let outputs: serde_json::Value = serde_json::from_str(&reply)?;
+        screen_size(&outputs).ok_or_else(|| anyhow::anyhow!("sway reports no active output"))
+    }
 }
 
 /// A sway workspace number as the shell keeps it. Apps with no workspace of
@@ -168,6 +177,20 @@ impl Sway {
 /// says -1) and one past 255 read as 0, which no window is placed on.
 fn workspace_number(num: i64) -> u8 {
     u8::try_from(num).unwrap_or(0)
+}
+
+/// The focused output's `rect`, or the first active one's while nothing has
+/// focus yet.
+pub fn screen_size(outputs: &serde_json::Value) -> Option<(u32, u32)> {
+    let list = outputs.as_array()?;
+    let active = |o: &&serde_json::Value| o["active"].as_bool() == Some(true);
+    let output = list
+        .iter()
+        .filter(active)
+        .find(|o| o["focused"].as_bool() == Some(true))
+        .or_else(|| list.iter().find(active))?;
+    let size = |key: &str| u32::try_from(output["rect"][key].as_i64()?).ok();
+    Some((size("width")?, size("height")?))
 }
 
 /// One open window, as the dock and the switcher need it.
@@ -361,5 +384,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(focused_window_name(&tree), None);
+    }
+
+    #[test]
+    fn the_screen_is_the_rotated_rect_not_the_panel_mode() {
+        let outputs: serde_json::Value = serde_json::from_str(
+            r#"[
+              {"name":"HDMI-A-1","active":false,"focused":false,
+               "rect":{"x":0,"y":0,"width":0,"height":0}},
+              {"name":"DSI-1","active":true,"focused":true,
+               "current_mode":{"width":720,"height":1280},
+               "rect":{"x":0,"y":0,"width":1280,"height":720}}
+            ]"#,
+        )
+        .unwrap();
+        assert_eq!(screen_size(&outputs), Some((1280, 720)));
     }
 }

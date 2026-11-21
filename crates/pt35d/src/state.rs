@@ -2,9 +2,10 @@
 
 use anyhow::{bail, Result};
 use pt35_common::apps::AppTable;
+use pt35_common::device::Device;
 use pt35_common::ipc::{
-    CpuProfile, Delta, InputMode, ModeRequest, PowerAction, Request, Response, Status, Toggle,
-    WindowAction,
+    CpuProfile, Delta, InputMode, Keypad, ModeRequest, PowerAction, Request, Response, Status,
+    Toggle, WindowAction,
 };
 use pt35_common::menu::MenuTree;
 use pt35_common::theme::Theme;
@@ -22,6 +23,7 @@ pub struct Session {
     pub hw: Hardware,
     pub audio: audio::Backend,
     pub status: Status,
+    device: Device,
     sway: Option<Sway>,
     menu_proc: Option<Child>,
     /// The menu.toml page the menu shows, as it last said.
@@ -117,6 +119,7 @@ impl Session {
                 touch_enabled: true,
                 ..Status::default()
             },
+            device: Device::current(),
             sway: None,
             menu_proc: None,
             menu_page: None,
@@ -157,11 +160,15 @@ impl Session {
             log::error!("apps.toml is inconsistent: {e}");
         }
         log::info!(
-            "hardware: battery={} backlight={} audio={:?}",
+            "hardware: device={:?} battery={} backlight={} touchscreen={} audio={:?}",
+            session.device,
             session.hw.battery.is_some(),
             session.hw.backlight.is_some(),
+            session.hw.touchscreen,
             session.audio
         );
+        session.status.touchscreen = session.hw.touchscreen;
+        session.status.keypad = session.keypad();
         session.apply_assignments();
         session.status.cpu_profile = crate::hardware::current_cpu_profile();
         session.apply_wallpaper();
@@ -191,7 +198,10 @@ impl Session {
         }
         let path = dir.join(format!("{id}.ppm"));
         let top = self.theme.bar.height;
-        let area = format!("0,{top} 640x{}", 480 - top);
+        let Ok((width, height)) = self.sway().and_then(|sway| sway.screen_size()) else {
+            return;
+        };
+        let area = format!("0,{top} {width}x{}", height.saturating_sub(top));
         // Written aside and renamed, so the menu never reads half a picture.
         let spawned = Command::new("sh")
             .args([
@@ -218,6 +228,10 @@ impl Session {
     /// getting through, so it is asked only a few times per keyboard: when the
     /// console appears, and when `pt35-kbd` says it changed the firmware.
     fn probe_firmware(&mut self) {
+        // Only the PocketTerm35's RP2040 has the backlight on its console.
+        if self.device != Device::PocketTerm35 {
+            return;
+        }
         if let Some(rx) = &self.backlight_probe {
             match rx.try_recv() {
                 Ok(probe) => {
@@ -487,7 +501,7 @@ impl Session {
             .hw
             .brightness_percent()
             .or_else(|| self.serial_backlight.as_ref().and_then(|b| b.level));
-        self.status.pt35_firmware = self.serial_backlight.is_some();
+        self.status.keypad = self.keypad();
         let (volume, muted) = audio::state(self.audio);
         self.status.volume_percent = volume;
         self.status.muted = muted;
@@ -772,22 +786,31 @@ impl Session {
                     .hw
                     .brightness_percent()
                     .or_else(|| self.serial_backlight.as_ref().and_then(|b| b.level))
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("brightness is Fn - and = until the keyboard is reflashed")
+                    .ok_or_else(|| match self.device {
+                        Device::PocketTerm35 => {
+                            anyhow::anyhow!(
+                                "brightness is Fn - and = until the keyboard is reflashed"
+                            )
+                        }
+                        Device::UConsole => anyhow::anyhow!("no backlight in /sys/class/backlight"),
                     })?;
-                let target = match change {
-                    Delta::Absolute(v) => v.min(100) as u8,
-                    Delta::Relative(v) => (current as i32 + v).clamp(1, 100) as u8,
+                let (target, towards) = match change {
+                    Delta::Absolute(v) => (v.min(100) as u8, 0),
+                    Delta::Relative(v) => ((current as i32 + v).clamp(1, 100) as u8, v.signum()),
                     Delta::Mute => bail!("brightness has no mute"),
                 };
                 let applied = if self.hw.backlight.is_some() {
-                    self.hw.set_brightness_percent(target).then_some(target)
+                    self.hw.set_brightness_percent(target, towards)
                 } else {
                     self.serial_backlight.as_mut().and_then(|b| b.set(target))
                 };
-                self.status.pt35_firmware = self.serial_backlight.is_some();
+                self.status.keypad = self.keypad();
                 let Some(level) = applied else {
-                    bail!("the keyboard did not take the brightness");
+                    bail!(match self.device {
+                        Device::PocketTerm35 if self.hw.backlight.is_none() =>
+                            "the keyboard did not take the brightness",
+                        _ => "the backlight is not writable (is the udev rule installed?)",
+                    });
                 };
                 self.status.brightness_percent = Some(level);
                 self.brightness_changes += 1;
@@ -870,10 +893,11 @@ impl Session {
             }
 
             Request::WindowFit => {
-                // Drag a runaway window back inside the panel, leaving room for the bar.
-                let height = 480 - self.theme.bar.height;
+                // Drag a runaway window back inside the screen, leaving room for the bar.
+                let (width, height) = self.sway()?.screen_size()?;
+                let height = height.saturating_sub(self.theme.bar.height);
                 self.sway_command(&format!(
-                    "resize set width 640 px height {height} px, move position center"
+                    "resize set width {width} px height {height} px, move position center"
                 ))?;
                 Ok(Response::Ok)
             }
@@ -1286,6 +1310,16 @@ impl Session {
         }
     }
 
+    /// What the face buttons send. The uConsole's always come through
+    /// `gamepad`; a PocketTerm35's are the letters until its firmware answers.
+    fn keypad(&self) -> Keypad {
+        match self.device {
+            Device::UConsole => Keypad::UConsole,
+            Device::PocketTerm35 if self.serial_backlight.is_some() => Keypad::Pt35,
+            Device::PocketTerm35 => Keypad::Stock,
+        }
+    }
+
     /// Hand Start to the menu while it is up.
     ///
     /// A sway binding beats any surface, so with `Pause` bound the menu never
@@ -1294,9 +1328,10 @@ impl Session {
     /// Start's and Select's keysyms. The pt35 firmware's are always bound:
     /// stock never sends them, and a keyboard still booting when pt35d asked
     /// must not be left with dead buttons. Stock's Pause and Print are bound
-    /// too until the pt35 firmware is known, then left to Fn.
+    /// too until the pt35 firmware is known, then left to Fn. The uConsole
+    /// sends the pt35 firmware's keys through `gamepad`.
     fn start_select(&self) -> (Vec<&'static str>, Vec<&'static str>) {
-        if self.serial_backlight.is_some() {
+        if !self.keypad().letters_are_buttons() {
             (vec![PT35_START], vec![PT35_SELECT])
         } else {
             (
@@ -1336,7 +1371,7 @@ impl Session {
                     .map(|key| format!("bindsym --no-repeat {key} exec pt35ctl menu open windows")),
             )
             .collect();
-        if self.serial_backlight.is_some() {
+        if !self.keypad().letters_are_buttons() {
             // Fn+Select is Print Screen: a screenshot, as on any desktop. The
             // stock bindings on Print and Pause come off, so Fn+Start reaches
             // the app as a plain Pause.

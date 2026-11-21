@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# pt35-probe.sh: Phase 0 hardware probe for the Waveshare PocketTerm35.
+# pt35-probe.sh: hardware probe for the Waveshare PocketTerm35 and the
+# ClockworkPi uConsole.
 #
-# Run ON THE DEVICE (Raspberry Pi inside the PocketTerm35), as your normal user:
+# Run ON THE DEVICE, as your normal user:
 #     bash scripts/pt35-probe.sh > docs/hardware-facts.md 2>&1
 #
 # It only reads; it changes nothing. Sections marked [MANUAL] need you to press keys.
@@ -11,7 +12,9 @@ say()  { printf '\n## %s\n\n' "$*"; }
 run()  { printf '```console\n$ %s\n' "$*"; eval "$*" 2>&1 | sed 's/^/ /;s/^ //' ; printf '```\n'; }
 note() { printf '> %s\n\n' "$*"; }
 
-printf '# PocketTerm35 hardware facts\n\n'
+DEVICE=$(/usr/lib/pt35/pt35-device 2>/dev/null || echo unknown)
+
+printf '# %s hardware facts\n\n' "$DEVICE"
 printf -- '- generated: %s\n' "$(date -Is)"
 printf -- '- host: %s\n' "$(uname -a)"
 printf -- '- model: %s\n\n' "$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo unknown)"
@@ -23,7 +26,7 @@ run 'cat /proc/cpuinfo | tail -n 6'
 
 say 'Boot configuration'
 run 'cat /boot/firmware/config.txt 2>/dev/null || cat /boot/config.txt'
-run 'ls /boot/firmware/overlays/ 2>/dev/null | grep -i -E "waveshare|goodix|dwc2" || echo "no matching overlays"'
+run 'ls /boot/firmware/overlays/ 2>/dev/null | grep -i -E "waveshare|goodix|dwc2|clockworkpi" || echo "no matching overlays"'
 run 'vcgencmd get_config int 2>/dev/null | head -n 20 || true'
 
 say 'Display / DRM'
@@ -34,10 +37,10 @@ for c in /sys/class/drm/card*-*/; do
 done
 run 'command -v wlr-randr >/dev/null && wlr-randr || echo "wlr-randr not installed / no compositor running"'
 run 'dmesg | grep -i -E "drm|hdmi|vc4" | tail -n 25'
-note 'Wanted: confirm the native 640x480 mode, the connector name (HDMI-A-1 / HDMI-A-2) and whether hdmi_cvt/framebuffer_* lines are still required under KMS.'
+note 'Wanted: the connector name and mode. PocketTerm35: HDMI-A-1 at 640x480. uConsole: DSI-1 (CM4) or DSI-2 (CM5) at 720x1280, which sway turns to 1280x720.'
 
 say 'Backlight / LEDs'
-run 'ls -l /sys/class/backlight/ 2>/dev/null || echo "NO /sys/class/backlight: brightness is RP2040-owned"'
+run 'ls -l /sys/class/backlight/ 2>/dev/null || echo "NO /sys/class/backlight: on a PocketTerm35, brightness is RP2040-owned"'
 run 'ls -l /sys/class/leds/ 2>/dev/null || true'
 
 say 'I2C bus'
@@ -56,7 +59,7 @@ run 'ls -l /dev/input/by-id/ /dev/input/by-path/ 2>/dev/null'
 run 'lsusb'
 note '[MANUAL] For every keyboard-ish event node run:  sudo evtest /dev/input/eventN'
 note '[MANUAL] Press, one at a time, and record the emitted code: every Fn combination, each D-pad direction, each gaming button, the shoulder buttons, volume and brightness keys.'
-note 'Expected: the D-pad and buttons arrive as keys (KEY_UP, F13-F18) on the keyboard device. A gamepad device here would be a different board revision.'
+note 'Expected on a PocketTerm35: the D-pad and buttons arrive as keys (KEY_UP, F13-F18) on the keyboard device. On a uConsole (1eaf:0024): the D-pad as keys, A B X Y Select Start as joystick buttons on a device of their own.'
 
 say 'Touchscreen'
 run 'dmesg | grep -i -E "goodix|gt911|touch" | tail -n 15'

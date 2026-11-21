@@ -1,0 +1,4 @@
+# pt35d sets the brightness through sysfs as the session user: the uConsole's
+# ocp8178 backlight. The kernel makes the file root's; give `video` the write.
+# The PocketTerm35 has no backlight device, and this matches nothing there.
+ACTION!="remove", SUBSYSTEM=="backlight", RUN+="/usr/bin/chgrp video /sys/class/backlight/%k/brightness", RUN+="/usr/bin/chmod g+w /sys/class/backlight/%k/brightness"

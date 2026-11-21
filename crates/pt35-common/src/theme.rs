@@ -147,6 +147,8 @@ pub struct Menu {
     /// Width of the list's scrollbar. It is a target too: a click on the
     /// track jumps there and a drag moves the list.
     pub scrollbar_width: u32,
+    /// Width of the launcher's right-hand column: Windows, Settings, Power.
+    pub side_width: u32,
 }
 
 pub const ANIMATIONS_DEFAULT: u8 = 3;
@@ -231,6 +233,8 @@ pub struct IconTheme {
     pub size_bar: u32,
     /// The badge on a menu tile and a dock slot.
     pub size_tile: u32,
+    /// The icon at the start of a list row.
+    pub size_row: u32,
 }
 
 impl Default for IconTheme {
@@ -239,6 +243,7 @@ impl Default for IconTheme {
             theme: "Papirus-Dark".into(),
             size_bar: 18,
             size_tile: 32,
+            size_row: 24,
         }
     }
 }
@@ -398,6 +403,7 @@ impl Default for Menu {
             tile_height: 86,
             gap: 10,
             scrollbar_width: 8,
+            side_width: 148,
         }
     }
 }

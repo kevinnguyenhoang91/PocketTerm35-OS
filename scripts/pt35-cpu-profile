@@ -6,21 +6,19 @@
 # sysfs files, which is about as small as a privileged surface gets.
 set -eu
 
+# Eighths of the chip's top speed, as pt35d's hardware.rs has them: 1.5 and
+# 1.8 GHz on a Pi 5 or CM5, 0.94 and 1.1 GHz on a CM4.
 case "${1:-}" in
-  powersave)   governor=powersave;   max=1500000 ;;
-  balanced)    governor=ondemand;    max=1800000 ;;
-  performance) governor=performance; max=max ;;
+  powersave)   governor=powersave;   eighths=5 ;;
+  balanced)    governor=ondemand;    eighths=6 ;;
+  performance) governor=performance; eighths=8 ;;
   *) echo "usage: $0 powersave|balanced|performance" >&2; exit 2 ;;
 esac
 
 applied=0
 for policy in /sys/devices/system/cpu/cpufreq/policy*; do
   [ -d "$policy" ] || continue
-  if [ "$max" = max ]; then
-    limit=$(cat "$policy/cpuinfo_max_freq")
-  else
-    limit=$max
-  fi
+  limit=$(( $(cat "$policy/cpuinfo_max_freq") * eighths / 8 ))
   # The governor may not be built in; fall back to whatever is available.
   if ! echo "$governor" > "$policy/scaling_governor" 2>/dev/null; then
     echo "$(cut -d' ' -f1 < "$policy/scaling_available_governors")" > "$policy/scaling_governor"

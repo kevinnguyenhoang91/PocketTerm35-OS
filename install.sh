@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# pt35-desktop: a pocket desktop for the Waveshare PocketTerm35.
+# pt35-desktop: a pocket desktop for the Waveshare PocketTerm35 and the
+# ClockworkPi uConsole.
 #
 #   curl -fsSL https://raw.githubusercontent.com/therezor/PocketTerm35-OS/main/install.sh | sudo bash
 #
@@ -9,7 +10,8 @@
 #   --dry-run          print what would happen, change nothing
 #   --uninstall        remove pt35-desktop and restore the previous session
 #   --from-source      build the binaries here instead of downloading a release
-#   --flash-keyboard   also put the face buttons on F13-F18 (see firmware/)
+#   --branch NAME      build this branch of the repo instead (to try a change)
+#   --flash-keyboard   also put the face buttons on F13-F18 (PocketTerm35 only)
 #   --ai[=MODEL]       also set up the local AI agent, without asking
 #   --no-ai            do not ask about the AI agent
 #   --user NAME        set up the session for this user (default: $SUDO_USER)
@@ -20,7 +22,7 @@ VERSION="0.4.6"
 REPO="${PT35_REPO:-therezor/PocketTerm35-OS}"
 SHARE=/usr/share/pt35-desktop
 DRY=0; UNINSTALL=0; FROM_SOURCE=0; FLASH_KEYBOARD=0; TARGET_USER=""
-AI=ask; AI_MODEL=""
+AI=ask; AI_MODEL=""; BRANCH=""
 
 msg()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*" >&2; }
@@ -41,6 +43,9 @@ Flags:
   --dry-run          print what would happen, change nothing
   --uninstall        remove pt35-desktop and restore the previous session
   --from-source      build the binaries here instead of downloading a release
+  --branch NAME      clone this branch of the repo (PT35_REPO, default
+                     therezor/PocketTerm35-OS) and build it, to try a change
+                     before it is released
   --flash-keyboard   also flash the keyboard firmware (see firmware/)
   --ai[=MODEL]       also set up the local AI agent (MODEL: minicpm5-2b,
                      lfm3-1.7b, minicpm5-1b or qwen3-0.6b; default: the one
@@ -71,6 +76,7 @@ while [ $# -gt 0 ]; do
     --ai=*) AI=yes; AI_MODEL="${1#--ai=}" ;;
     --no-ai) AI=no ;;
     --user) TARGET_USER="${2:?--user needs a name}"; shift ;;
+    --branch) BRANCH="${2:?--branch needs a name}"; shift ;;
     --version) echo "pt35-desktop installer $VERSION"; exit 0 ;;
     -h|--help) usage ;;
     *) die "unknown option: $1 (try --help)" ;;
@@ -104,11 +110,13 @@ check_platform() {
   model=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "")
   case "$model" in
     *"Raspberry Pi 5"*|*"Raspberry Pi 4"*) msg "board: $model" ;;
-    *) warn "unrecognised board '${model:-unknown}'; the PocketTerm35 ships with a Pi 4B or Pi 5" ;;
+    *"Compute Module 4"*|*"Compute Module 5"*) msg "board: $model" ;;
+    *) warn "unrecognised board '${model:-unknown}'; the PocketTerm35 ships with a Pi 4B or Pi 5,
+     the uConsole with a CM4 or CM5" ;;
   esac
 
-  if [ -x /usr/bin/labwc ] || systemctl list-unit-files 2>/dev/null | grep -q '^lightdm\.service'; then
-    warn "this looks like Raspberry Pi OS Desktop: pt35-desktop will take over the session (--uninstall restores it)"
+  if [ -x /usr/bin/labwc ] || systemctl list-unit-files 2>/dev/null | grep -qE '^(lightdm|sddm)\.service'; then
+    warn "this looks like a desktop image: pt35-desktop will take over the session (--uninstall restores it)"
   fi
 }
 
@@ -158,12 +166,13 @@ install_from_release() {
         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold '$deb'"
 }
 
-# No release to download: fetch the source and build it here instead, so the
-# one-command install works even before the first tag is cut.
+# No release to download, or a branch asked for: fetch the source and build it
+# here instead, so the one-command install works even before the first tag is
+# cut.
 clone_and_build() {
   local tmp="$1"
   run "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git"
-  run "git clone --depth 1 'https://github.com/$REPO' '$tmp/src'"
+  run "git clone --depth 1 ${BRANCH:+--branch '$BRANCH'} 'https://github.com/$REPO' '$tmp/src'"
   # mktemp -d is 0700 root: the build runs as the user, who must reach src.
   run "chmod 755 '$tmp' && chown -R '$TARGET_USER' '$tmp/src'"
   install_from_source "$tmp/src"
@@ -204,14 +213,16 @@ install_from_source() {
   run "install -d '$SHARE/ai' && install -m644 '$src/config/ai/darkwire-agents.yaml' '$SHARE/ai/'"
   run "install -Dm644 '$src/config/icons/darkwire.svg' /usr/share/icons/hicolor/scalable/apps/darkwire.svg"
   run "install -d /usr/lib/pt35 && install -m755 '$src/scripts/pt35-cpu-profile' /usr/lib/pt35/pt35-cpu-profile"
+  run "install -m755 '$src/scripts/pt35-device' /usr/lib/pt35/pt35-device"
   # --uninstall through curl has no checkout, and needs this to undo postinst.
   run "install -m755 '$src/packaging/debian/prerm' /usr/lib/pt35/prerm"
-  run "install -d '$SHARE/sway' '$SHARE/pt35' '$SHARE/foot' '$SHARE/boot' '$SHARE/fastfetch'"
+  run "install -d '$SHARE/sway' '$SHARE/pt35/uconsole' '$SHARE/foot' '$SHARE/boot' '$SHARE/fastfetch'"
   run "install -m644 '$src/config/fastfetch/skull.txt' '$SHARE/fastfetch/'"
   run "install -d /etc/xdg/fastfetch && install -m644 '$src/config/fastfetch/config.jsonc' /etc/xdg/fastfetch/"
-  run "install -m644 '$src/config/sway/config' '$SHARE/sway/config'"
+  run "install -m644 '$src/config/sway/config' '$src/config/sway/'*.conf '$SHARE/sway/'"
   run "install -m644 '$src/config/foot/foot.ini' '$SHARE/foot/foot.ini'"
   run "install -m644 '$src/config/pt35/'*.toml '$SHARE/pt35/'"
+  run "install -m644 '$src/config/pt35/uconsole/'*.toml '$SHARE/pt35/uconsole/'"
   run "install -m755 '$src/scripts/pt35-probe.sh' '$SHARE/pt35-probe.sh'"
   run "install -d '$SHARE/firmware/stock'"
   run "install -m644 '$src/firmware/code.py' '$SHARE/firmware/'"
@@ -222,6 +233,7 @@ install_from_source() {
   run "install -d /etc/keyd && install -m644 '$src/config/keyd/pocketterm35.conf' /etc/keyd/"
   run "install -m440 '$src/packaging/pt35-cpu-profile.sudoers' /etc/sudoers.d/pt35-cpu-profile"
   run "install -m644 '$src/packaging/70-pt35-uinput.rules' /etc/udev/rules.d/70-pt35-uinput.rules"
+  run "install -m644 '$src/packaging/70-pt35-backlight.rules' /etc/udev/rules.d/70-pt35-backlight.rules"
   run "install -d /usr/share/wayland-sessions && install -m644 '$src/config/pt35-session.desktop' /usr/share/wayland-sessions/"
   if [ -f "$src/boot/waveshare-35dpi-5b.dtbo" ]; then
     [ -f "$src/boot/SHA256SUMS" ] && run "(cd '$src/boot' && sha256sum -c SHA256SUMS)"
@@ -322,7 +334,10 @@ do_install() {
 
   local src
   src=$(source_dir)
-  if [ "$FROM_SOURCE" = 1 ] || [ -n "$src" ]; then
+  if [ -n "$BRANCH" ]; then
+    msg "building branch '$BRANCH' of $REPO"
+    clone_and_build "$(mktemp -d)"
+  elif [ "$FROM_SOURCE" = 1 ] || [ -n "$src" ]; then
     [ -n "$src" ] || die "--from-source needs a checkout; clone $REPO first"
     msg "installing from the checkout at $src"
     install_from_source "$src"
@@ -332,7 +347,9 @@ do_install() {
   install_yazi
   setup_ai
 
-  if [ "$FLASH_KEYBOARD" = 1 ]; then
+  if [ "$FLASH_KEYBOARD" = 1 ] && [ "$(device)" = uconsole ]; then
+    warn "--flash-keyboard is for the PocketTerm35: a uConsole's buttons need no new firmware"
+  elif [ "$FLASH_KEYBOARD" = 1 ]; then
     msg "putting the face buttons on F13-F18"
     run "pt35-kbd flash"
   fi
@@ -347,7 +364,7 @@ EOF
   [ "$AI" = yes ] || ! command -v pt35-ai >/dev/null || cat <<EOF
   Local AI agent:       sudo pt35-ai setup   (see: pt35-ai models)
 EOF
-  [ "$FLASH_KEYBOARD" = 1 ] || keyboard_patched || cat <<EOF
+  [ "$FLASH_KEYBOARD" = 1 ] || keyboard_ready || cat <<EOF
 
   A B X Y L R still send the letters a b x y l r, the same keycodes the keyboard
   sends, so the shell cannot use them as buttons. To change that:
@@ -359,15 +376,21 @@ EOF
   echo
 }
 
-# Whether the keyboard already runs the pt35 firmware. A running pt35d knows.
-# Asking the keyboard from here could stall: stock firmware never reads its
-# console.
-keyboard_patched() {
+# Whether the face buttons are keys of their own: a uConsole's always are, a
+# PocketTerm35's once it runs the pt35 firmware. A running pt35d knows. Asking
+# the keyboard from here could stall: stock firmware never reads its console.
+keyboard_ready() {
+  [ "$(device)" != uconsole ] || return 0
   local uid
   uid=$(id -u "$TARGET_USER" 2>/dev/null) || return 1
   [ -S "/run/user/$uid/pt35.sock" ] || return 1
   runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="/run/user/$uid" \
-    pt35ctl status --json 2>/dev/null | grep -q '"pt35_firmware":true'
+    pt35ctl status --json 2>/dev/null | grep -q '"keypad":"pt35"'
+}
+
+# `pocketterm35` or `uconsole`, once the package has put pt35-device in place.
+device() {
+  /usr/lib/pt35/pt35-device 2>/dev/null || echo pocketterm35
 }
 
 # prerm undoes postinst: the boot config, greetd and the drop-ins. The copy
@@ -410,7 +433,8 @@ do_uninstall() {
         /usr/bin/pt35-ai /usr/lib/systemd/system/pt35-ai.service \
         /usr/share/icons/hicolor/scalable/apps/darkwire.svg \
         /etc/keyd/pocketterm35.conf \
-        /etc/sudoers.d/pt35-cpu-profile /etc/udev/rules.d/70-pt35-uinput.rules /etc/xdg/fastfetch/config.jsonc \
+        /etc/sudoers.d/pt35-cpu-profile /etc/udev/rules.d/70-pt35-uinput.rules \
+        /etc/udev/rules.d/70-pt35-backlight.rules /etc/xdg/fastfetch/config.jsonc \
         /usr/share/wayland-sessions/pt35-session.desktop"
   run "rm -rf '$SHARE' /usr/lib/pt35"
   msg "done. Your ~/.config/{sway,pt35,foot} were left untouched. Reboot."

@@ -416,10 +416,10 @@ impl Menu {
         model: Model,
     ) -> Self {
         let status = crate::live::status();
-        // With the pt35 firmware the face buttons are F-keys, so a letter is
-        // a letter: typing never presses a button.
-        let pt35_firmware = status.as_ref().is_some_and(|s| s.pt35_firmware);
-        pt35_ui::keys::set_letters_are_buttons(!pt35_firmware);
+        // With the pt35 firmware or on a uConsole the face buttons are keys
+        // of their own, so a letter is a letter: typing never presses a button.
+        let keypad = status.as_ref().map(|s| s.keypad).unwrap_or_default();
+        pt35_ui::keys::set_letters_are_buttons(keypad.letters_are_buttons());
         let icons = pt35_ui::icon::Icons::new(&theme.icons.theme);
         let theme_animations = theme.menu.animations;
         Self {
@@ -677,6 +677,10 @@ impl Menu {
         self.status
             .as_ref()
             .is_some_and(|s| s.input_mode == pt35_common::ipc::InputMode::Mouse)
+    }
+
+    fn keypad(&self) -> pt35_common::ipc::Keypad {
+        self.status.as_ref().map(|s| s.keypad).unwrap_or_default()
     }
 
     /// The right-click menu of the row under the cursor, as if clicked there.
@@ -1064,7 +1068,7 @@ impl Menu {
         // App icons are drawn in their own colours, status icons in the text's.
         let full_colour =
             self.model.dynamic_builtin() == Some(pt35_common::menu::Builtin::DesktopEntries);
-        let icon_size = 24;
+        let icon_size = theme.icons.size_row;
         let has_icons = rows
             .iter()
             .any(|row| !row.icon.is_empty() || row.tint.is_some());
@@ -1508,9 +1512,9 @@ impl Menu {
         let theme = self.theme.clone();
         let pad = theme.menu.padding_x as i32;
         // The column runs to the edge: a margin outside it would read as the
-        // list continuing, and 640px has none to spare.
-        let split = canvas.width as i32 - 148;
-        let icon_size = 24;
+        // list continuing, and a small screen has none to spare.
+        let split = canvas.width as i32 - theme.menu.side_width as i32;
+        let icon_size = theme.icons.size_row;
 
         let rows = self.model.visible_rows();
         let cursor = self.model.screen().list.cursor_index();
@@ -1901,8 +1905,9 @@ impl Menu {
             return;
         }
 
-        let row_h = ((bottom - top - 8) / rows.len().max(1) as i32).min(56);
-        let icon_size = 24;
+        let row_h =
+            ((bottom - top - 8) / rows.len().max(1) as i32).min(theme.menu.row_height as i32 + 6);
+        let icon_size = theme.icons.size_row;
         let readonly = self.readonly();
         if !readonly {
             let y = self.motion.glide(top + cursor as i32 * row_h);
@@ -2291,6 +2296,8 @@ impl Menu {
             // on a dashboard.
             .filter(|hint| !((readonly || empty) && !filtering && hint.button == "A"))
             .filter(|hint| !(readonly && hint.button == "X"))
+            // The uConsole has no R to name.
+            .filter(|hint| hint.button != "R" || self.keypad().has_shoulders())
             .map(|hint| {
                 // At the top screen back means out. On the screen the menu was
                 // opened on it is still "Back": back to your app.
@@ -2505,7 +2512,7 @@ impl App for Menu {
         // pt35d finds the firmware a moment after login, and the desktop menu
         // may have been up since before that.
         if let Some(status) = &self.status {
-            pt35_ui::keys::set_letters_are_buttons(!status.pt35_firmware);
+            pt35_ui::keys::set_letters_are_buttons(status.keypad.letters_are_buttons());
         }
         // A dynamic screen's rows were built by its provider and are frozen, so
         // a fresh Status is not enough on its own.
@@ -2895,7 +2902,12 @@ pub fn run(page: Option<String>) -> Result<()> {
     let mono = load(&[&f.family_mono, &f.family])?;
     let bold = load(&[&f.family_bold, &f.family])?;
     let mono_bold = load(&[&f.family_mono_bold, &f.family_mono, &f.family])?;
-    let body = 480u32
+    // The output as sway has it, rotated: 480 tall on the PocketTerm35, 720 on
+    // the uConsole. One IPC round trip, well under a millisecond.
+    let screen = pt35_common::sway::Sway::connect()
+        .and_then(|mut sway| sway.screen_size())
+        .map_or(480, |(_, height)| height);
+    let body = screen
         .saturating_sub(theme.bar.height)
         .saturating_sub(theme.menu.header_height)
         .saturating_sub(theme.menu.hint_height);

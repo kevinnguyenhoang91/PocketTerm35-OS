@@ -325,6 +325,35 @@ impl InputMode {
     }
 }
 
+/// What the face buttons send, which decides what a letter means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Keypad {
+    /// PocketTerm35 on stock firmware: A B X Y L R are the letters
+    /// `a b x y l r`, so a letter may be a button. The safe guess until
+    /// the keyboard says otherwise.
+    #[default]
+    Stock,
+    /// PocketTerm35 on the pt35 firmware: F13-F18, F21 and F22. Known
+    /// because that firmware answers the backlight command.
+    Pt35,
+    /// uConsole: `pt35d` replays the joystick buttons as the pt35
+    /// firmware's keys. It has no L or R.
+    #[serde(rename = "uconsole")]
+    UConsole,
+}
+
+impl Keypad {
+    pub fn letters_are_buttons(self) -> bool {
+        self == Keypad::Stock
+    }
+
+    /// L and R exist. The uConsole has none.
+    pub fn has_shoulders(self) -> bool {
+        self != Keypad::UConsole
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModeRequest {
@@ -395,6 +424,9 @@ pub struct Status {
     /// keeps tapping things.
     #[serde(default = "yes")]
     pub touch_enabled: bool,
+    /// There is a touchscreen to turn off.
+    #[serde(default)]
+    pub touchscreen: bool,
     #[serde(default, deserialize_with = "lenient")]
     pub input_mode: InputMode,
     pub scale: f32,
@@ -412,11 +444,9 @@ pub struct Status {
     /// only then, and keeps the app's slot filled otherwise.
     #[serde(default)]
     pub launcher_active: bool,
-    /// The keyboard runs the pt35 firmware: the face buttons send F13-F18,
-    /// so letters are only letters. Known because that firmware answers the
-    /// backlight command.
-    #[serde(default)]
-    pub pt35_firmware: bool,
+    /// What the face buttons send.
+    #[serde(default, deserialize_with = "lenient")]
+    pub keypad: Keypad,
     /// The window the switcher's cursor is on, so the taskbar can mark the
     /// same slot. `Some(0)` is the Launcher card: no sway container has id 0.
     #[serde(default)]

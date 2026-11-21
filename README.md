@@ -2,9 +2,9 @@
 
 # pt35-desktop
 
-**A pocket desktop for the Waveshare PocketTerm35.**
+**A pocket desktop for the Waveshare PocketTerm35 and the ClockworkPi uConsole.**
 
-Built for a 640x480 screen, a thumb keyboard and a D-pad.<br>
+Built for a small screen, a thumb keyboard and a D-pad.<br>
 Real Linux apps, one per screen, no tiny windows.
 
 [![CI](https://github.com/therezor/PocketTerm35-OS/actions/workflows/ci.yml/badge.svg)](https://github.com/therezor/PocketTerm35-OS/actions/workflows/ci.yml)
@@ -51,21 +51,29 @@ menu you drive with the D-pad. A mouse works too, built in or plugged in.
   Mouse mode turns the D-pad into a cursor. R switches.
 - **Mouse and touch.** Hover, click, right click, wheel, and breadcrumbs to go back.
 - **Quick settings.** Wi-Fi, Bluetooth, volume, brightness*, input mode, touch.
+- **Battery.** In the bar, where the device has a gauge: the uConsole does.
 - **Network.** Wi-Fi list and Ethernet. A network that needs a password asks
   for it in a popup.
 - **CPU profiles.** Powersave, balanced and performance.
 - **Local AI agent.** Optional. darkwire in a terminal, on a model the Pi runs itself.
 - **Fast.** Plain Rust, drawn in software. The menu opens in about 75ms on a Pi 5.
 
-\* With the patched keyboard firmware (install step 2).
+\* On a PocketTerm35, with the patched keyboard firmware (install step 2).
 
 It is a real graphical desktop. sway draws the screen and XWayland runs X11
 apps, so GTK, Qt and X11 programs work as normal.
 
 ## Install
 
-You need a PocketTerm35 with a Pi 4B or Pi 5, and **Raspberry Pi OS (Trixie)
-64-bit**. Lite is best. Bookworm is not supported.
+You need one of:
+
+- a **PocketTerm35** with a Pi 4B or Pi 5, on **Raspberry Pi OS (Trixie)
+  64-bit**. Lite is best.
+- a **ClockworkPi uConsole** with a CM4 or CM5, on ak-rex's
+  [ClockworkPi Debian 13 Trixie](https://images.ak-rex.com/#clockworkpi)
+  image. Lite is best.
+
+Bookworm is not supported.
 
 **1. Install.** On the device:
 
@@ -74,9 +82,16 @@ curl -fsSL https://raw.githubusercontent.com/therezor/PocketTerm35-OS/main/insta
 ```
 
 This downloads the latest release and installs it with all its dependencies.
-It also sets up the screen, touch, login and the udev rules.
+It also sets up the login and the udev rules, and on a PocketTerm35 the screen
+and touch. A uConsole's boot config is left as the image has it.
 
-**2. Flash the keyboard firmware.** Recommended.
+On a uConsole, follow the step-by-step guide in
+[docs/uconsole.md](docs/uconsole.md): it covers writing the image, the first
+boot and checking the buttons.
+
+**2. Flash the keyboard firmware.** PocketTerm35 only. Recommended. A
+uConsole skips this step: its buttons work as they are. See
+[docs/KEYS.md](docs/KEYS.md#uconsole).
 
 ```sh
 sudo pt35-kbd flash

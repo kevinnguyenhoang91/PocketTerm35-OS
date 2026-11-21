@@ -36,8 +36,15 @@ USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 # ------------------------------------------------------------- boot config
 BOOTCFG=/boot/firmware/config.txt
 [ -f "$BOOTCFG" ] || BOOTCFG=/boot/config.txt
+DEVICE=$(/usr/lib/pt35/pt35-device)
 
-if [ -f "$BOOTCFG" ]; then
+if [ "$DEVICE" = uconsole ]; then
+  # The image's own config.txt already has the uConsole overlay, which is
+  # the screen, the keyboard's USB, the backlight and the battery.
+  if [ -f "$BOOTCFG" ] && grep -qF "$MARK_BEGIN" "$BOOTCFG"; then
+    sed -i "/pt35-desktop >>>/,/pt35-desktop <<</d" "$BOOTCFG"
+  fi
+elif [ -f "$BOOTCFG" ]; then
   OVERLAYS=$(dirname "$BOOTCFG")/overlays
   if [ -f "$SHARE/boot/waveshare-35dpi-5b.dtbo" ] && [ -d "$OVERLAYS" ]; then
     install -m644 "$SHARE/boot/waveshare-35dpi-5b.dtbo" "$OVERLAYS/"
@@ -85,6 +92,11 @@ fi
 
 if [ ! -e "$USER_HOME/.config/foot/foot.ini" ]; then
   install -m644 -o "$USER_NAME" -g "$USER_NAME" "$SHARE/foot/foot.ini" "$USER_HOME/.config/foot/foot.ini"
+  # The uConsole's panel is 1.3 times as dense: the same letters need 14pt.
+  if [ "$DEVICE" = uconsole ]; then
+    sed -i 's/^font=DejaVu Sans Mono:size=11$/font=DejaVu Sans Mono:size=14/' \
+      "$USER_HOME/.config/foot/foot.ini"
+  fi
 else
   # A copy of an older default: move only the values still at the old default.
   sed -i -e 's/^font=DejaVu Sans Mono:size=10$/font=DejaVu Sans Mono:size=11/' \
@@ -98,10 +110,11 @@ fi
 
 # dialout: the keyboard's serial port, for brightness and the firmware check.
 usermod -aG input,video,render,audio,dialout "$USER_NAME" 2>/dev/null || true
-# The uinput rule applies at once, not at the next boot.
+# The uinput and backlight rules apply at once, not at the next boot.
 modprobe uinput 2>/dev/null || true
 udevadm control --reload 2>/dev/null || true
 udevadm trigger --name-match=uinput 2>/dev/null || true
+udevadm trigger --subsystem-match=backlight 2>/dev/null || true
 
 # ---------------------------------------------------------------- services
 install -d /etc/systemd/logind.conf.d
@@ -130,7 +143,16 @@ fi
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload >/dev/null 2>&1 || true
   systemctl enable seatd.service >/dev/null 2>&1 || true
-  systemctl disable lightdm.service >/dev/null 2>&1 || true
+  # Whichever display manager the image starts gives way to greetd, or greetd
+  # cannot be enabled: lightdm on Pi OS Desktop, sddm on some uConsole images.
+  # prerm gives it back.
+  dm=$(readlink /etc/systemd/system/display-manager.service 2>/dev/null || true)
+  dm=$(basename "${dm:-lightdm.service}" .service)
+  if [ "$dm" != greetd ]; then
+    install -d /var/lib/pt35-desktop
+    echo "$dm" > /var/lib/pt35-desktop/display-manager
+    systemctl disable "$dm.service" >/dev/null 2>&1 || true
+  fi
   systemctl set-default graphical.target >/dev/null 2>&1 || true
   systemctl enable greetd.service >/dev/null 2>&1 || true
 fi

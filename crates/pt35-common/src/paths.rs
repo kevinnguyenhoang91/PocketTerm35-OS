@@ -29,6 +29,15 @@ pub fn system_config(relative: &str) -> Option<PathBuf> {
     Some(share_dir().join(relative))
 }
 
+/// The device's shipped layer over `relative`: `pt35/uconsole/theme.toml`.
+/// `None` on the PocketTerm35, whose sizes are the defaults.
+pub fn device_config(relative: &str) -> Option<PathBuf> {
+    let layer = crate::device::Device::current().config_layer()?;
+    let path = Path::new(relative);
+    let dir = share_dir().join(path.parent().unwrap_or(Path::new("")));
+    Some(dir.join(layer).join(path.file_name()?))
+}
+
 /// User copy of `relative`; only the basename is used, the user tree is flat.
 pub fn user_config(relative: &str) -> Option<PathBuf> {
     let name = Path::new(relative).file_name()?;

@@ -150,6 +150,29 @@ impl Keyboard {
     }
 }
 
+/// The uConsole's face buttons, as the keys the pt35 firmware sends for them.
+/// `gamepad` presses and releases them as the joystick buttons go.
+pub struct FaceKeys {
+    file: File,
+}
+
+impl FaceKeys {
+    /// F15 to F18 (X Y B A), F21 (Select) and F22 (Start).
+    pub const KEYS: [u16; 6] = [185, 186, 187, 188, 191, 192];
+
+    pub fn open() -> std::io::Result<Self> {
+        let file = create(b"pt35 face buttons", 0x3537, &[EV_KEY], &Self::KEYS, &[])?;
+        Ok(Self { file })
+    }
+
+    pub fn send(&mut self, code: u16, down: bool) -> std::io::Result<()> {
+        let mut out = Vec::with_capacity(2 * EVENT);
+        out.extend(event(EV_KEY, code, down as i32));
+        out.extend(event(EV_SYN, 0, 0));
+        self.file.write_all(&out)
+    }
+}
+
 /// A mouse that only ever turns its wheel: X and Y in Mouse mode.
 ///
 /// sway 1.10's `seat cursor press button4` sends a pointer frame with no

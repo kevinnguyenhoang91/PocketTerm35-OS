@@ -1,0 +1,16 @@
+# The uConsole's app profiles, merged over ../apps.toml app by app when
+# pt35-session finds a uConsole. At 1280x720 the apps shrunk for 640x480 have
+# room at full size, and pt35-session scales every toolkit up by 1.25 for the
+# denser panel.
+
+[app.editor]
+scale = 1.0
+
+[app.music]
+scale = 1.0
+
+[app.calculator]
+scale = 1.0
+
+[app.browser]
+exec = "chromium --ozone-platform=wayland --force-device-scale-factor=1.25"

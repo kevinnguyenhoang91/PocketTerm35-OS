@@ -1,21 +1,22 @@
 //! Everything the daemon reads out of sysfs, and the graceful absence of it.
 //!
-//! On the PocketTerm35 the RP2040 may own the backlight and the battery gauge
-//! outright, in which case none of these paths exist. That is a supported
-//! configuration: every getter returns `Option` and the bar simply hides the
-//! widget. Phase 0's probe (`scripts/pt35-probe.sh`) records which case a given
-//! unit is in.
+//! On the PocketTerm35 the RP2040 owns the backlight and there is no battery
+//! gauge at all, so neither path exists. That is a supported configuration:
+//! every getter returns `Option` and the bar simply hides the widget. The
+//! uConsole has both: an `ocp8178` backlight and the AXP228's battery.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// The battery and backlight are discovered once at startup: re-scanning sysfs
-/// on every tick is wasted IO. Network interfaces come and go (a USB adapter, a
-/// tether), so they are listed when asked, which is one readdir.
+/// The battery, backlight and touchscreen are discovered once at startup:
+/// re-scanning sysfs on every tick is wasted IO. Network interfaces come and go
+/// (a USB adapter, a tether), so they are listed when asked, which is one readdir.
 #[derive(Debug, Default, Clone)]
 pub struct Hardware {
     pub battery: Option<PathBuf>,
     pub backlight: Option<PathBuf>,
+    /// A touchscreen is wired in: the PocketTerm35's GT911. The uConsole has none.
+    pub touchscreen: bool,
     net_root: PathBuf,
 }
 
@@ -39,6 +40,9 @@ impl Hardware {
         Self {
             battery,
             backlight,
+            touchscreen: list(&sysfs.join("class/input"))
+                .iter()
+                .any(|dev| is_touchscreen(dev)),
             net_root: sysfs.join("class/net"),
         }
     }
@@ -79,17 +83,27 @@ impl Hardware {
         Some(((now as u64 * 100 / max as u64).min(100)) as u8)
     }
 
-    /// Apply an absolute percentage. Returns `false` when there is no backlight
-    /// to talk to (RP2040-owned), so the caller can say so instead of lying.
-    pub fn set_brightness_percent(&self, percent: u8) -> bool {
-        let Some(base) = self.backlight.as_ref() else {
-            return false;
-        };
-        let Some(max) = read_u32(&base.join("max_brightness")) else {
-            return false;
-        };
-        let value = (max as u64 * percent.min(100) as u64 / 100).max(1);
-        fs::write(base.join("brightness"), value.to_string()).is_ok()
+    /// Apply a percentage and return the level the panel took. `None` when
+    /// there is no backlight to talk to (RP2040-owned) or it is not writable.
+    ///
+    /// A backlight with few levels rounds: the uConsole's has nine. `towards`
+    /// is a step's direction, and a step always moves at least one level, or
+    /// +10% from 22% rounds back to 22% and the key does nothing.
+    pub fn set_brightness_percent(&self, percent: u8, towards: i32) -> Option<u8> {
+        let base = self.backlight.as_ref()?;
+        let max = read_u32(&base.join("max_brightness")).filter(|&max| max > 0)? as u64;
+        let now = read_u32(&base.join("brightness")).unwrap_or(0) as u64;
+        let mut value = (max * percent.min(100) as u64 + 50) / 100;
+        if towards != 0 && value == now {
+            value = if towards > 0 {
+                now + 1
+            } else {
+                now.saturating_sub(1)
+            };
+        }
+        let value = value.clamp(1, max);
+        fs::write(base.join("brightness"), value.to_string()).ok()?;
+        Some((value * 100 / max) as u8)
     }
 
     /// The interface carrying traffic: a cable beats Wi-Fi, as NetworkManager's
@@ -140,6 +154,27 @@ fn name(iface: &Path) -> Option<String> {
     Some(iface.file_name()?.to_string_lossy().into_owned())
 }
 
+/// An input device that is a touchscreen: it reports where it is touched
+/// (multitouch X) on the display itself (`INPUT_PROP_DIRECT`), not a touchpad.
+fn is_touchscreen(dev: &Path) -> bool {
+    const INPUT_PROP_DIRECT: usize = 1;
+    const ABS_MT_POSITION_X: usize = 0x35;
+    let has = |file: &str, bit: usize| {
+        read_trim(&dev.join(file)).is_some_and(|bits| bitmap_has(&bits, bit))
+    };
+    has("properties", INPUT_PROP_DIRECT) && has("capabilities/abs", ABS_MT_POSITION_X)
+}
+
+/// One bit of an input capability bitmap as sysfs prints it: hex words of 64
+/// bits, the highest first, space-separated.
+pub fn bitmap_has(bits: &str, bit: usize) -> bool {
+    bits.split_whitespace()
+        .rev()
+        .nth(bit / 64)
+        .and_then(|word| u64::from_str_radix(word, 16).ok())
+        .is_some_and(|word| word >> (bit % 64) & 1 == 1)
+}
+
 /// `/proc/net/wireless` reports link quality out of 70, one line per radio.
 fn wireless_quality(text: &str, iface: &str) -> Option<u8> {
     let line = text.lines().skip(2).find(|l| {
@@ -152,28 +187,31 @@ fn wireless_quality(text: &str, iface: &str) -> Option<u8> {
     Some(((quality / 70.0) * 100.0).clamp(0.0, 100.0) as u8)
 }
 
-/// CPU frequency profiles. The Pi 5 in this chassis browns out under a full
-/// load on a small USB-C supply, so `balanced` is the shipped default.
+/// CPU frequency profiles, as shares of the chip's top speed: 1.5 and 1.8 GHz
+/// on a Pi 5 or CM5, 0.94 and 1.1 GHz on a CM4. The Pi 5 in the PocketTerm35
+/// browns out under a full load on a small USB-C supply, so `balanced` is
+/// the shipped default.
 #[derive(Debug, Clone, Copy)]
 pub struct CpuLimits {
     pub governor: &'static str,
-    pub max_khz: Option<u32>,
+    pub max_khz: u32,
 }
 
-pub fn cpu_limits(profile: pt35_common::ipc::CpuProfile) -> CpuLimits {
+pub fn cpu_limits(profile: pt35_common::ipc::CpuProfile, hardware_max: u32) -> CpuLimits {
     use pt35_common::ipc::CpuProfile::*;
+    let share = |eighths: u64| (hardware_max as u64 * eighths / 8) as u32;
     match profile {
         Powersave => CpuLimits {
             governor: "powersave",
-            max_khz: Some(1_500_000),
+            max_khz: share(5),
         },
         Balanced => CpuLimits {
             governor: "ondemand",
-            max_khz: Some(1_800_000),
+            max_khz: share(6),
         },
         Performance => CpuLimits {
             governor: "performance",
-            max_khz: None,
+            max_khz: hardware_max,
         },
     }
 }
@@ -181,19 +219,18 @@ pub fn cpu_limits(profile: pt35_common::ipc::CpuProfile) -> CpuLimits {
 /// Write a CPU profile to every policy in cpufreq. Best-effort: on a kernel
 /// without cpufreq write access this is a no-op and the caller reports it.
 pub fn apply_cpu_profile(profile: pt35_common::ipc::CpuProfile) -> bool {
-    let limits = cpu_limits(profile);
     let policies = cpu_policies();
     if policies.is_empty() {
         return false;
     }
     let mut ok = false;
     for policy in policies {
+        let Some(hardware_max) = read_u32(&policy.join("cpuinfo_max_freq")) else {
+            continue;
+        };
+        let limits = cpu_limits(profile, hardware_max);
         ok |= fs::write(policy.join("scaling_governor"), limits.governor).is_ok();
-        if let Some(khz) = limits.max_khz {
-            let _ = fs::write(policy.join("scaling_max_freq"), khz.to_string());
-        } else if let Some(max) = read_u32(&policy.join("cpuinfo_max_freq")) {
-            let _ = fs::write(policy.join("scaling_max_freq"), max.to_string());
-        }
+        let _ = fs::write(policy.join("scaling_max_freq"), limits.max_khz.to_string());
     }
     ok
 }
@@ -218,8 +255,8 @@ pub fn cpu_profile_of(
     [Powersave, Balanced, Performance]
         .into_iter()
         .find(|&profile| {
-            let limits = cpu_limits(profile);
-            limits.governor == governor && limits.max_khz.unwrap_or(hardware_max) == max_khz
+            let limits = cpu_limits(profile, hardware_max);
+            limits.governor == governor && limits.max_khz == max_khz
         })
 }
 
@@ -275,6 +312,12 @@ mod cpu_tests {
             "the boot default is no profile"
         );
     }
+
+    #[test]
+    fn a_cm4_powersaves_below_its_top_speed() {
+        let limits = cpu_limits(CpuProfile::Powersave, 1_500_000);
+        assert_eq!(limits.max_khz, 937_500);
+    }
 }
 
 #[cfg(test)]
@@ -302,10 +345,12 @@ mod tests {
         assert_eq!(hw.battery_percent(), None);
         assert_eq!(hw.brightness_percent(), None);
         assert_eq!(hw.network(), None);
-        assert!(
-            !hw.set_brightness_percent(50),
+        assert_eq!(
+            hw.set_brightness_percent(50, 0),
+            None,
             "must admit it cannot set brightness"
         );
+        assert!(!hw.touchscreen);
     }
 
     #[test]
@@ -326,6 +371,45 @@ mod tests {
         assert_eq!(hw.charging(), Some(true));
         assert_eq!(hw.brightness_percent(), Some(50));
         assert_eq!(hw.network().as_deref(), Some("wlan0"));
+    }
+
+    #[test]
+    fn a_step_on_a_nine_level_backlight_always_moves() {
+        let root = sysfs_with(
+            "ocp8178",
+            &[
+                ("class/backlight/backlight@0/max_brightness", "9\n"),
+                ("class/backlight/backlight@0/brightness", "2\n"),
+            ],
+        );
+        let hw = Hardware::probe_in(&root);
+        assert_eq!(hw.brightness_percent(), Some(22));
+        assert_eq!(hw.set_brightness_percent(32, 1), Some(33));
+        assert_eq!(
+            hw.set_brightness_percent(36, 1),
+            Some(44),
+            "33 + 3 rounds to 33"
+        );
+        assert_eq!(
+            hw.set_brightness_percent(1, -1),
+            Some(11),
+            "never fully dark"
+        );
+        assert_eq!(hw.set_brightness_percent(1, -1), Some(11));
+    }
+
+    #[test]
+    fn a_touchscreen_is_direct_and_a_touchpad_is_not() {
+        let goodix = [
+            ("class/input/input4/properties", "2\n"),
+            ("class/input/input4/capabilities/abs", "260800000000003\n"),
+        ];
+        assert!(Hardware::probe_in(&sysfs_with("goodix", &goodix)).touchscreen);
+        let touchpad = [
+            ("class/input/input5/properties", "5\n"),
+            ("class/input/input5/capabilities/abs", "260800000000003\n"),
+        ];
+        assert!(!Hardware::probe_in(&sysfs_with("touchpad", &touchpad)).touchscreen);
     }
 
     #[test]
