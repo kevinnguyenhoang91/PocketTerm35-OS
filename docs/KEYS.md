@@ -35,7 +35,7 @@ mouse, and the D-pad stays the arrow keys, its only ones.
 | D-pad | arrows |
 | A | the launcher: what Start does |
 | B | the window switcher: what Select does |
-| X | Tab; in the menu, search |
+| X | the Monitor app, btop: opens it, or brings it to the front |
 | Y | close the window: what L does on the PocketTerm35 |
 | trackball | moves the cursor |
 | L, R (the trackball's keys) | left click, right click (options) |
@@ -54,10 +54,10 @@ Trackball Scroll. Super is Fn + Alt.
 
 The keyboard needs no new firmware. It sends A B X Y, Select and Start as
 joystick buttons, and `pt35d` presses keys the PocketTerm35's patched
-firmware sends: F22 (Start) for A, F21 (Select) for B, F15 for X and F13 (L)
-for Y. It keeps the joystick to itself, so a game sees these keys and no
-gamepad. Switch 2 on the back of the keyboard must be off: on, A B X Y type
-`j k u i`.
+firmware sends: F22 (Start) for A, F21 (Select) for B and F13 (L) for Y. X
+sends F19, which the uConsole's sway config binds to btop. It keeps the
+joystick to itself, so a game sees these keys and no gamepad. Switch 2 on
+the back of the keyboard must be off: on, A B X Y type `j k u i`.
 
 Fn + Select is Print Screen, a screenshot. Fn + `,` and Fn + `.` set the
 brightness.

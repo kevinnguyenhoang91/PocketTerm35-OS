@@ -84,9 +84,10 @@ unit. See `docs/hardware-facts.md`.
   buttons, which sway cannot bind. `pt35d`'s `gamepad.rs` grabs the joystick
   and presses pt35 firmware F-keys on a uinput keyboard, so every binding is
   shared. A sends F22 (Start, the launcher), B F21 (Select, the switcher),
-  Y F13 (L, close), X F15. `Status::keypad` is `UConsole`. Select goes out on
-  release, and not when the trackball scrolled: holding Select makes it a
-  wheel.
+  Y F13 (L, close), X F19, which `sway/uconsole.conf` binds to the Monitor
+  app (btop on the uConsole). `Status::keypad` is `UConsole`. Select goes
+  out on release, and not when the trackball scrolled: holding Select makes
+  it a wheel.
 - L and R are the trackball's left and right mouse buttons, not gamepad
   buttons: sway sees plain clicks and no binding can use them. One input
   mode (`Keypad::one_mode`): the trackball, L and R are the mouse, and the

@@ -7,9 +7,10 @@
 //! and a game would get both otherwise.
 //!
 //! The uConsole's L and R are the trackball's mouse buttons, not gamepad
-//! buttons, so three face buttons take the jobs that need a button of their
+//! buttons, so the face buttons take the jobs that need a button of their
 //! own: A is Start (the launcher), B is Select (the window switcher), Y is
-//! the PocketTerm35's L (close the window).
+//! the PocketTerm35's L (close the window). X is F19, which
+//! `sway/uconsole.conf` binds to the Monitor app, btop.
 //!
 //! Select goes out when it is let go, and only if the trackball did not
 //! scroll meanwhile: the keyboard turns the trackball into a wheel while
@@ -42,7 +43,7 @@ const F21: u16 = 191;
 
 /// Joystick button to the pt35 firmware's key it stands for.
 const KEYS: [(u16, u16); 5] = [
-    (BTN_JOYSTICK, 185),     // button 1, X: F15, Tab
+    (BTN_JOYSTICK, 189),     // button 1, X: F19, the Monitor app
     (BTN_JOYSTICK + 1, 192), // button 2, A: F22, Start: the launcher
     (BTN_JOYSTICK + 2, 191), // button 3, B: F21, Select: the window switcher
     (BTN_JOYSTICK + 3, 183), // button 4, Y: F13, L: close the window
@@ -277,7 +278,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_b_and_y_are_the_launcher_the_switcher_and_close() {
+    fn the_face_buttons_are_the_launcher_switcher_close_and_monitor() {
         let mut buttons = Buttons::default();
         let a = BTN_JOYSTICK + 1;
         assert_eq!(buttons.joystick(EV_KEY, a, 1), [(192, true)], "A is Start");
@@ -286,6 +287,8 @@ mod tests {
         assert_eq!(buttons.joystick(EV_KEY, b, 1), [(F21, true)], "B is Select");
         let y = BTN_JOYSTICK + 3;
         assert_eq!(buttons.joystick(EV_KEY, y, 1), [(183, true)], "Y is L");
+        let x = BTN_JOYSTICK;
+        assert_eq!(buttons.joystick(EV_KEY, x, 1), [(189, true)], "X is F19");
         assert_eq!(buttons.joystick(EV_KEY, BTN_JOYSTICK + 9, 1), [(192, true)]);
     }
 

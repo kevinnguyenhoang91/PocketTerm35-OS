@@ -8,9 +8,9 @@
   image. The shell finds the uConsole by its panel, sizes itself for the
   1280x720 screen, and shows the battery. A B X Y, Select and Start work
   with the keyboard's stock firmware: A opens the launcher, B the window
-  switcher, Y closes the window. There is one input mode: the trackball is
-  the mouse and the D-pad stays the arrow keys. Hold Select and roll the
-  trackball to scroll. See docs/KEYS.md.
+  switcher, Y closes the window, X opens btop. There is one input mode: the
+  trackball is the mouse and the D-pad stays the arrow keys. Hold Select
+  and roll the trackball to scroll. See docs/KEYS.md.
 - `install.sh --branch NAME` builds a branch of the repo, to try a change
   before it is released. `PT35_REPO` picks a fork.
 

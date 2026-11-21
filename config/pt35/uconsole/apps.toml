@@ -14,3 +14,7 @@ scale = 1.0
 
 [app.browser]
 exec = "chromium --ozone-platform=wayland --force-device-scale-factor=1.25"
+
+# btop on the uConsole: 1280x720 has room for its graphs. X opens it.
+[app.monitor]
+exec = "foot -a pt35-monitor btop"

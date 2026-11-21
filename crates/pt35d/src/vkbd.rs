@@ -157,8 +157,8 @@ pub struct FaceKeys {
 }
 
 impl FaceKeys {
-    /// F13 (L), F15 (X), F21 (Select) and F22 (Start).
-    pub const KEYS: [u16; 4] = [183, 185, 191, 192];
+    /// F13 (L), F19 (the Monitor app), F21 (Select) and F22 (Start).
+    pub const KEYS: [u16; 4] = [183, 189, 191, 192];
 
     pub fn open() -> std::io::Result<Self> {
         let file = create(b"pt35 face buttons", 0x3537, &[EV_KEY], &Self::KEYS, &[])?;

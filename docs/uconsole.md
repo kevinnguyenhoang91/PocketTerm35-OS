@@ -136,6 +136,7 @@ Then try the controls:
 | A | the launcher opens; again over an app, it closes |
 | B | the window switcher |
 | Y | the window in front closes |
+| X | btop opens, or comes to the front |
 | Start | the launcher opens and closes |
 | Select, let go | the window switcher |
 | hold Select, roll the trackball | it scrolls, no switcher |
