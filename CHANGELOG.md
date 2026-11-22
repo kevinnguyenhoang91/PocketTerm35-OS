@@ -15,7 +15,8 @@
 - `install.sh --branch NAME` builds a branch of the repo, to try a change
   before it is released. `PT35_REPO` picks a fork.
 - Phosphor, a retro terminal green, joins the accents in Settings >
-  Appearance > Accent.
+  Appearance > Accent, and the palettes in Settings > Appearance > Palette:
+  green on black, with amber warnings.
 
 ### Changed
 

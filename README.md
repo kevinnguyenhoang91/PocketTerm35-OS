@@ -38,7 +38,7 @@ menu you drive with the D-pad. A mouse works too, built in or plugged in.
 </tr>
 <tr>
 <td align="center">Right click a row for more</td>
-<td align="center">Six colour palettes, applied to GTK and Qt apps too</td>
+<td align="center">Seven colour palettes, applied to GTK and Qt apps too</td>
 </tr>
 </table>
 

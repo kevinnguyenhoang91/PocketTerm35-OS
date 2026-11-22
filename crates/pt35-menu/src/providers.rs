@@ -1240,6 +1240,13 @@ pub const PALETTES: &[(&str, &[(&str, &str)])] = &[
             "#1f7a55", "#c9c2b3", "#1f7a55", "#b3363f", "#1d6f8a", "#9a6a00", "#c9c2b3",
         ]),
     ),
+    (
+        "Phosphor",
+        &palette([
+            "#050a05", "#0b170b", "#b8ffb8", "#4fa64f", "#33ff33", "#031203", "#ffb000", "#ff5555",
+            "#33ff33", "#1c3d1c", "#33ff33", "#ff5555", "#66e0ff", "#ffb000", "#1c3d1c",
+        ]),
+    ),
 ];
 
 const fn palette(hex: [&'static str; 15]) -> [(&'static str, &'static str); 15] {
@@ -1422,7 +1429,7 @@ fn palettes() -> Items {
             label: (*name).into(),
             payload: format!("theme:palette={name}"),
             active: in_use == Some(*name),
-            // Five of these are near-black: the accent is what tells them apart.
+            // Six of these are near-black: the accent is what tells them apart.
             tint: colours
                 .iter()
                 .find(|(key, _)| *key == "accent")
