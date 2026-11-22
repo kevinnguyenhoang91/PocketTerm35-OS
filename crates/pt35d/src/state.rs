@@ -46,6 +46,8 @@ pub struct Session {
     lock_proc: Option<Child>,
     /// swayidle, while Screen off waits for a key or a touch to wake it.
     wake_proc: Option<Child>,
+    /// swayidle for `[screen] blank_after`, and the seconds it was started with.
+    blank_proc: Option<(Child, u32)>,
     /// The backlight through the keyboard, when its firmware answers.
     serial_backlight: Option<crate::backlight::SerialBacklight>,
     /// A background look for the pt35 firmware: the keyboard reboots after a
@@ -134,6 +136,7 @@ impl Session {
             bound: Vec::new(),
             lock_proc: None,
             wake_proc: None,
+            blank_proc: None,
             last_preview: std::time::Instant::now(),
             // Asked off the startup path, by the first poll: a stock keyboard
             // takes 0.4s to say nothing.
@@ -177,6 +180,7 @@ impl Session {
         apply_cursor(&session.theme.pointer);
         session.kill_stray_menu();
         session.clear_stale_binds();
+        session.apply_blanking();
         session
     }
 
@@ -1042,6 +1046,7 @@ impl Session {
                 apply_color_scheme(&self.theme);
                 apply_animations(&self.theme);
                 apply_cursor(&self.theme.pointer);
+                self.apply_blanking();
                 hooks::fire("reload", &[]);
                 self.notify("Config reloaded", 0);
                 Ok(Response::Ok)
@@ -1553,6 +1558,46 @@ impl Session {
         Ok(())
     }
 
+    /// Blank the panel after `[screen] blank_after` seconds with nothing
+    /// pressed. sway has no idle timeout of its own. The first one also takes
+    /// down a swayidle a previous pt35d left, which would blank on its own
+    /// timer.
+    fn apply_blanking(&mut self) {
+        let after = self.theme.screen.blank_after;
+        match self.blank_proc.take() {
+            Some((mut child, running)) => {
+                if running == after && matches!(child.try_wait(), Ok(None)) {
+                    self.blank_proc = Some((child, running));
+                    return;
+                }
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            None => {
+                let _ = Command::new("pkill")
+                    .args(["-f", &format!("^{BLANK_NAME} ")])
+                    .status();
+            }
+        }
+        if after == 0 {
+            return;
+        }
+        use std::os::unix::process::CommandExt;
+        let spawned = Command::new("swayidle")
+            .arg0(BLANK_NAME)
+            .args(["timeout", &after.to_string()])
+            .args([r#"swaymsg "output * power off""#, "resume"])
+            .arg(r#"swaymsg "output * power on""#)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+        match spawned {
+            Ok(child) => self.blank_proc = Some((child, after)),
+            Err(e) => log::warn!("swayidle: {e}; the screen will not blank"),
+        }
+    }
+
     fn power(&mut self, action: PowerAction) -> Result<()> {
         match action {
             // Under swaylock the menu is out of sight, and it would still be
@@ -1601,6 +1646,10 @@ impl Session {
 /// `$$` is the shell, which `exec` makes swayidle, so the resume ends it.
 const SCREEN_OFF: &str = r#"command -v swayidle >/dev/null || exit 1
 exec swayidle timeout 1 'swaymsg "output * power off"' resume "swaymsg 'output * power on'; kill $$""#;
+
+/// The blanking swayidle's argv[0], so the next pt35d can find it and no
+/// swayidle of the user's own.
+const BLANK_NAME: &str = "pt35-blank";
 
 /// Whether an empty desktop should bring the menu up.
 ///

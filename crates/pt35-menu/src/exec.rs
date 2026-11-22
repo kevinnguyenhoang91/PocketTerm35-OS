@@ -81,6 +81,7 @@ fn dynamic(builtin: Builtin, payload: &str) -> Plan {
         | Builtin::Accent
         | Builtin::Clock
         | Builtin::Animations
+        | Builtin::Blanking
         | Builtin::About => Plan::Nothing,
     }
 }
@@ -157,11 +158,11 @@ pub fn perform(command: &Command) -> Result<(), String> {
             pt35_common::set_appearance(section, &entries, replace).map_err(|e| e.to_string())?;
             // The bar watches the file. The daemon needs telling about [apps],
             // which it hands to gsettings, a palette, whose background is also
-            // the wallpaper, previews, which it captures, and animations, which
-            // GTK apps get too.
+            // the wallpaper, previews, which it captures, animations, which
+            // GTK apps get too, and blanking, which it runs.
             let daemon_reads = entries
                 .iter()
-                .any(|(key, _)| matches!(*key, "window_previews" | "animations"));
+                .any(|(key, _)| matches!(*key, "window_previews" | "animations" | "blank_after"));
             if section == "apps" || replace || daemon_reads {
                 let _ = crate::live::request(&pt35_common::ipc::Request::Reload);
             }

@@ -84,6 +84,7 @@ pub fn screen(builtin: Builtin) -> Screen {
         Builtin::Accent => ("Accent", Layout::List, None, accents),
         Builtin::Clock => ("Clock", Layout::List, None, clocks),
         Builtin::Animations => ("Animations", Layout::List, None, animation_speeds),
+        Builtin::Blanking => ("Screen blanking", Layout::List, None, blanking_times),
         Builtin::About => ("About", Layout::List, None, about),
     };
     Screen {
@@ -101,6 +102,7 @@ pub fn screen(builtin: Builtin) -> Screen {
                 | Builtin::Accent
                 | Builtin::Clock
                 | Builtin::Animations
+                | Builtin::Blanking
         ),
     }
 }
@@ -1490,6 +1492,31 @@ fn animation_speeds() -> Items {
         .collect()
 }
 
+/// Seconds before the panel goes dark, by name. 0 is never. Spelled out, as
+/// with the speeds: the row numbers would read as the time.
+const BLANKING: [(u32, &str); 6] = [
+    (0, "Never"),
+    (60, "One minute"),
+    (120, "Two minutes"),
+    (300, "Five minutes"),
+    (600, "Ten minutes"),
+    (1800, "Half an hour"),
+];
+
+fn blanking_times() -> Items {
+    let after = pt35_common::load_theme().screen.blank_after;
+    BLANKING
+        .iter()
+        .map(|(seconds, name)| Item {
+            label: (*name).into(),
+            payload: format!("theme:screen.blank_after={seconds}"),
+            icon: "preferences-desktop-screensaver".into(),
+            active: after == *seconds,
+            ..Item::default()
+        })
+        .collect()
+}
+
 /// `section.key=value` from an Appearance row, typed the way the theme wants it.
 pub fn parse_pick(pick: &str) -> Option<(&str, &str, toml::Value)> {
     let (path, value) = pick.split_once('=')?;
@@ -1720,7 +1747,7 @@ mod provider_tests {
             .into_iter()
             .filter(|builtin| screen(*builtin).theme)
             .collect();
-        assert_eq!(settings.len(), 7);
+        assert_eq!(settings.len(), 8);
         for builtin in settings {
             let rows = items(builtin);
             assert!(!rows.is_empty(), "{builtin:?}");

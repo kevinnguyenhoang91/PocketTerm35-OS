@@ -81,6 +81,11 @@ color_scheme  = "dark"
 gtk_dark      = "Adwaita-dark"
 gtk_light     = "Adwaita"
 
+# Seconds without a key, click or touch before the panel goes dark; 0 never.
+# A fullscreen window, or an app that asks (a video player), holds it on.
+[screen]
+blank_after   = 600
+
 # Papirus is packaged and readable at this size. Anything the theme does not
 # have falls back to a letter in a coloured badge.
 [icons]

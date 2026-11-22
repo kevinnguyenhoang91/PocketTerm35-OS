@@ -17,6 +17,11 @@
 - Phosphor, a retro terminal green, joins the accents in Settings >
   Appearance > Accent, and the palettes in Settings > Appearance > Palette:
   green on black, with amber warnings.
+- The screen blanks after ten minutes with nothing pressed. Any key, click
+  or touch wakes it. Settings > Screen blanking picks the time, or Never.
+  A fullscreen window, or an app that asks, keeps it lit. Raspberry Pi's
+  Control Centre cannot set this: it writes labwc's config, which this
+  session never reads.
 
 ### Changed
 

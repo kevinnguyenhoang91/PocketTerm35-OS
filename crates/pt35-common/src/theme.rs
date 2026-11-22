@@ -14,6 +14,22 @@ pub struct Theme {
     pub buttons: Buttons,
     pub icons: IconTheme,
     pub apps: Apps,
+    pub screen: Screen,
+}
+
+/// The panel itself, as against what is drawn on it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Screen {
+    /// Seconds without a key, click or touch before the panel goes dark. 0
+    /// never blanks. A fullscreen window, or an app that asks, holds it on.
+    pub blank_after: u32,
+}
+
+impl Default for Screen {
+    fn default() -> Self {
+        Self { blank_after: 600 }
+    }
 }
 
 /// How GTK and Qt apps are drawn. The shell is dark; an app in the Pi's light

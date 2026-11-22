@@ -134,6 +134,8 @@ pub enum Builtin {
     Accent,
     Clock,
     Animations,
+    /// How long the panel stays lit with nothing pressed.
+    Blanking,
     About,
 }
 
@@ -145,7 +147,7 @@ impl Builtin {
     }
 
     /// Every screen, for `from_name`. A new one goes here and in `name`.
-    pub const ALL: [Builtin; 17] = [
+    pub const ALL: [Builtin; 18] = [
         Builtin::Launcher,
         Builtin::Quick,
         Builtin::System,
@@ -162,6 +164,7 @@ impl Builtin {
         Builtin::Accent,
         Builtin::Clock,
         Builtin::Animations,
+        Builtin::Blanking,
         Builtin::About,
     ];
 
@@ -184,6 +187,7 @@ impl Builtin {
             Builtin::Accent => "accent",
             Builtin::Clock => "clock",
             Builtin::Animations => "animations",
+            Builtin::Blanking => "blanking",
             Builtin::About => "about",
         }
     }
