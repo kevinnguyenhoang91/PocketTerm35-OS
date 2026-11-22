@@ -14,6 +14,8 @@
   rather than PT35. See docs/KEYS.md.
 - `install.sh --branch NAME` builds a branch of the repo, to try a change
   before it is released. `PT35_REPO` picks a fork.
+- Phosphor, a retro terminal green, joins the accents in Settings >
+  Appearance > Accent.
 
 ### Changed
 

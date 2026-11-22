@@ -1190,6 +1190,7 @@ pub const ACCENTS: &[(&str, &str)] = &[
     ("Orange", "#f0a04b"),
     ("Violet", "#b89cf2"),
     ("Pink", "#f28cc4"),
+    ("Phosphor", "#33ff33"),
 ];
 
 /// Whole schemes: every colour key, so nothing is left in the last one's tint.
