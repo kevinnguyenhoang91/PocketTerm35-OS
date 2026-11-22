@@ -26,6 +26,14 @@ impl Device {
         }
     }
 
+    /// The name the menu's header starts with.
+    pub fn brand(self) -> &'static str {
+        match self {
+            Device::PocketTerm35 => "PT35",
+            Device::UConsole => "UCONSOLE",
+        }
+    }
+
     /// The folder of shipped config merged over the defaults, beside them:
     /// `pt35/uconsole/theme.toml` over `pt35/theme.toml`. The defaults are
     /// the PocketTerm35's own.

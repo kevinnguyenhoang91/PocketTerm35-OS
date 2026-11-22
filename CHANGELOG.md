@@ -10,7 +10,8 @@
   with the keyboard's stock firmware: A opens the launcher, B the window
   switcher, Y closes the window, X opens btop. There is one input mode: the
   trackball is the mouse and the D-pad stays the arrow keys. Hold Select
-  and roll the trackball to scroll. See docs/KEYS.md.
+  and roll the trackball to scroll. The menu's header reads UCONSOLE
+  rather than PT35. See docs/KEYS.md.
 - `install.sh --branch NAME` builds a branch of the repo, to try a change
   before it is released. `PT35_REPO` picks a fork.
 

@@ -263,6 +263,8 @@ pub struct Menu {
     popup: Option<Popup>,
     /// The header's breadcrumbs: `(left, right, depth)`.
     crumb_hits: Vec<(i32, i32, usize)>,
+    /// The top screen's name in the header: the device's.
+    brand: &'static str,
     /// The scrollbar as last drawn: `(left, right, top, bottom, thumb height)`,
     /// hit box included. `None` when everything fits.
     scrollbar: Option<(i32, i32, i32, i32, i32)>,
@@ -458,6 +460,7 @@ impl Menu {
             pointer_driven: false,
             popup: None,
             crumb_hits: Vec::new(),
+            brand: pt35_common::device::Device::current().brand(),
             scrollbar: None,
             side_hits: Vec::new(),
             hint_hits: Vec::new(),
@@ -951,8 +954,8 @@ impl Menu {
         let baseline = (height as f32 * 0.64) as i32;
         let size = theme.font.size_title;
         self.crumb_hits.clear();
-        // The path is the way back: PT35 is the top screen, and each screen
-        // on the way is a link to itself. Only the one in front is plain.
+        // The path is the way back: the brand is the top screen, and each
+        // screen on the way is a link to itself. Only the one in front is plain.
         let trail: Vec<String> = self
             .model
             .trail()
@@ -961,9 +964,15 @@ impl Menu {
             .collect();
         let mut x = pad;
         let start = x;
-        x = self
-            .mono
-            .draw_tracked(canvas, "PT35", x, baseline, size, theme.color.accent, track);
+        x = self.mono.draw_tracked(
+            canvas,
+            self.brand,
+            x,
+            baseline,
+            size,
+            theme.color.accent,
+            track,
+        );
         if trail.len() > 1 {
             self.crumb_hits.push((start - 4, x + 4, 1));
         }
