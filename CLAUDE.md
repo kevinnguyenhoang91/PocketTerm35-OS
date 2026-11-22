@@ -90,9 +90,10 @@ unit. See `docs/hardware-facts.md`.
   (Select, the switcher), Y F13 (L, close). X sends no key: `gamepad.rs`
   asks the session for the Monitor app (btop on the uConsole) itself. A sway
   binding on F19 never fired on a CM4 unit.
-  `Status::keypad` is `UConsole`. On ClockworkPi's firmware Select goes out
-  on release, and not when the trackball scrolled: holding Select makes it
-  a wheel. QMK does that in its own firmware.
+  `Status::keypad` is `UConsole`. Select goes out on release, and not when
+  the trackball scrolled: holding Select makes it a wheel. `pt35d` does that
+  for ClockworkPi's firmware and QMK before v1.9, whose Select is down from
+  the press; QMK from v1.9 does it in its own firmware.
 - L and R are the trackball's left and right mouse buttons, not gamepad
   buttons: sway sees plain clicks and no binding can use them. One input
   mode (`Keypad::one_mode`): the trackball, L and R are the mouse, and the

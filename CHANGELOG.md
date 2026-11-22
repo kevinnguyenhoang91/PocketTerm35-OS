@@ -33,6 +33,10 @@
   Only ClockworkPi's own firmware was read.
 - X on the uConsole opens btop. It went through a sway binding on F19,
   which never fired; pt35d now opens it itself.
+- Holding Select and rolling the trackball scrolls on QMK keyboard firmware
+  before v1.9 too. Select opened the window switcher on the press, over
+  what you meant to scroll; it now waits for the release, as it does on
+  ClockworkPi's firmware.
 - A restarted pt35d clears the bindings the last one left. An old Mouse
   mode no longer keeps the D-pad moving the cursor until a reboot.
 

@@ -22,8 +22,9 @@
 //!   joystick buttons 1 to 6.
 //!
 //! Select goes out when it is let go, and only if the trackball did not
-//! scroll meanwhile: either keyboard turns the trackball into a wheel while
-//! Select is held. QMK does that itself.
+//! scroll meanwhile: every firmware turns the trackball into a wheel while
+//! Select is held. QMK from v1.9 does that itself, and sends the press and
+//! release together, which reads the same here.
 
 use std::fs::File;
 use std::io::Read;
@@ -76,8 +77,8 @@ use Out::{Key, Monitor};
 #[derive(Debug, PartialEq, Eq)]
 struct Layout {
     keys: &'static [(u16, Out)],
-    /// Sent on release, and only if the trackball did not scroll: ClockworkPi's
-    /// Select, which the keyboard turns into a wheel modifier.
+    /// Sent on release, and only if the trackball did not scroll: Select,
+    /// which the keyboard turns into a wheel modifier while it is held.
     select: Option<u16>,
 }
 
@@ -95,18 +96,18 @@ const STOCK_JOYSTICK: Layout = Layout {
 };
 
 /// j1n6's QMK firmware before v1.9, and its gamepad layer: joystick buttons
-/// 1 to 6 are A B X Y Select Start. The firmware sends Select on release
-/// itself.
+/// 1 to 6 are A B X Y Select Start. Before v1.9 Select goes down on the press
+/// and stays down while the trackball scrolls, so it waits for the release
+/// as ClockworkPi's does. From v1.9 the firmware holds it back itself.
 const QMK_JOYSTICK: Layout = Layout {
     keys: &[
         (BTN_JOYSTICK, Key(F22)),
         (BTN_JOYSTICK + 1, Key(F21)),
         (BTN_JOYSTICK + 2, Monitor),
         (BTN_JOYSTICK + 3, Key(F13)),
-        (BTN_JOYSTICK + 4, Key(F21)),
         (BTN_JOYSTICK + 5, Key(F22)),
     ],
-    select: None,
+    select: Some(BTN_JOYSTICK + 4),
 };
 
 /// j1n6's QMK firmware from v1.9: HID Execute, Stop, System Request and Menu
@@ -475,21 +476,28 @@ mod tests {
     }
 
     #[test]
-    fn stock_select_is_a_tap_on_release_unless_the_trackball_scrolled() {
-        let select = BTN_JOYSTICK + 8;
-        let mut buttons = Buttons::default();
-        assert!(buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 1).is_empty());
-        assert_eq!(
-            buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 0),
-            [(Key(F21), true), (Key(F21), false)]
-        );
+    fn select_is_a_tap_on_release_unless_the_trackball_scrolled() {
+        for (layout, select) in [
+            (&STOCK_JOYSTICK, BTN_JOYSTICK + 8),
+            (&QMK_JOYSTICK, BTN_JOYSTICK + 4),
+        ] {
+            let mut buttons = Buttons::default();
+            assert!(
+                buttons.press(layout, EV_KEY, select, 1).is_empty(),
+                "{layout:?}: the switcher must not open on the press"
+            );
+            assert_eq!(
+                buttons.press(layout, EV_KEY, select, 0),
+                [(Key(F21), true), (Key(F21), false)]
+            );
 
-        assert!(buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 1).is_empty());
-        buttons.mouse(EV_REL, REL_WHEEL);
-        assert!(
-            buttons.press(&STOCK_JOYSTICK, EV_KEY, select, 0).is_empty(),
-            "Select held to scroll is not the switcher"
-        );
+            assert!(buttons.press(layout, EV_KEY, select, 1).is_empty());
+            buttons.mouse(EV_REL, REL_WHEEL);
+            assert!(
+                buttons.press(layout, EV_KEY, select, 0).is_empty(),
+                "{layout:?}: Select held to scroll is not the switcher"
+            );
+        }
     }
 
     fn sysfs(name: &str, devices: &[(&str, &[(&str, &str)])]) -> PathBuf {
